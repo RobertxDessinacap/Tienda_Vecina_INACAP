@@ -1,7 +1,25 @@
+import re
 from rest_framework import serializers
+from django.utils.html import escape
 from apps.products.models import Product, Category
 from apps.accounts.serializers import UserProfileSerializer
 from apps.products.utils import process_and_secure_product_image
+
+FORBIDDEN_XSS_REGEX = re.compile(r'[<>{}\[\]*\\;^$|~`]')
+MALICIOUS_SCRIPT_PATTERNS = re.compile(r'(javascript:|data:|vbscript:|on\w+=|<\s*script|<\s*iframe|<\s*embed|<\s*object)', re.IGNORECASE)
+
+def validate_xss_safe(text, field_name):
+    if not text:
+        return text
+    if FORBIDDEN_XSS_REGEX.search(text):
+        raise serializers.ValidationError(
+            f"El campo '{field_name}' contiene caracteres especiales no permitidos por seguridad anti-XSS ([ ] {{ }} * < > \\ ; etc.)."
+        )
+    if MALICIOUS_SCRIPT_PATTERNS.search(text):
+        raise serializers.ValidationError(
+            f"El campo '{field_name}' contiene secuencias no permitidas (script o inyección detectada)."
+        )
+    return text.strip()
 
 class CategorySerializer(serializers.ModelSerializer):
     products_count = serializers.IntegerField(source='products.count', read_only=True)
@@ -76,10 +94,13 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_title(self, value):
-        cleaned = value.strip()
+        cleaned = validate_xss_safe(value, "Nombre del Producto")
         if len(cleaned) < 3:
             raise serializers.ValidationError("El nombre del producto debe tener al menos 3 caracteres.")
         return cleaned
+
+    def validate_description(self, value):
+        return validate_xss_safe(value, "Descripción")
 
     def validate_price(self, value):
         if value <= 0:
@@ -87,7 +108,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_caracteristicas_ads(self, value):
-        cleaned = value.strip()
+        cleaned = validate_xss_safe(value, "Características ADS")
         # Validación explícita: "+ de 250 caracteres"
         if len(cleaned) <= 250:
             raise serializers.ValidationError(

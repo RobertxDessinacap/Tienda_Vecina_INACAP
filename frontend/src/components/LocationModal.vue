@@ -11,6 +11,7 @@ import {
   Search,
 } from 'lucide-vue-next'
 import { useLocationStore } from '../stores/location'
+import { blockDangerousCharsOnKeypress, sanitizeEventInput, sanitizeInput } from '../utils/security'
 
 const locationStore = useLocationStore()
 
@@ -135,6 +136,8 @@ function handleSaveCustom() {
               <input
                 v-model="customCity"
                 type="text"
+                @keypress="blockDangerousCharsOnKeypress"
+                @input="e => sanitizeEventInput(e, v => customCity = v)"
                 placeholder="Ej: Ñuñoa, Santiago o La Serena"
                 required
                 class="w-full p-2 bg-white rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#3483FA] text-xs"
@@ -146,6 +149,8 @@ function handleSaveCustom() {
               <input
                 v-model="customStreet"
                 type="text"
+                @keypress="blockDangerousCharsOnKeypress"
+                @input="e => sanitizeEventInput(e, v => customStreet = v)"
                 placeholder="Ej: Av. Apoquindo 4800, depto 402"
                 class="w-full p-2 bg-white rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#3483FA] text-xs"
               />

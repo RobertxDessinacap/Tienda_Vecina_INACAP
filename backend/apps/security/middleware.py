@@ -19,6 +19,15 @@ class ISO27001SecurityHeadersMiddleware:
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
         response['X-XSS-Protection'] = '1; mode=block'
+        response['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self' http://localhost:* http://127.0.0.1:* https:; "
+            "font-src 'self' https: data:; "
+            "frame-ancestors 'none';"
+        )
         return response
 
 class SecurityAuditLoggingMiddleware:

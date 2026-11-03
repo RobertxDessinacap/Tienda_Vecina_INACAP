@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from django.utils import timezone
 from datetime import timedelta
@@ -77,6 +78,25 @@ class UserRegistrationSerializer(serializers.Serializer):
         if len(value) < 8:
             raise serializers.ValidationError("La contraseña debe tener un mínimo de 8 caracteres.")
         return value
+
+    def validate_custom_alias(self, value):
+        if not value:
+            return value
+        cleaned = value.strip()
+        # Rechazar caracteres especiales de XSS / inyección
+        if re.search(r'[<>{}\[\]*\\;^$|~`]', cleaned):
+            raise serializers.ValidationError("El nombre o apodo no puede contener caracteres especiales como [ } * < > \\ ; etc.")
+        if re.search(r'(javascript:|data:|vbscript:|<\s*script)', cleaned, re.IGNORECASE):
+            raise serializers.ValidationError("Patrón de inyección de código detectado no permitido.")
+        return cleaned
+
+    def validate_full_name(self, value):
+        if not value:
+            return value
+        cleaned = value.strip()
+        if re.search(r'[<>{}\[\]*\\;^$|~`]', cleaned):
+            raise serializers.ValidationError("El nombre completo no puede contener caracteres especiales no autorizados.")
+        return cleaned
 
     def create(self, validated_data):
         email = validated_data['email']

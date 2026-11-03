@@ -2,7 +2,9 @@ from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Q
+from django.utils.html import escape
 import uuid
+import re
 from apps.products.models import Product, Category
 from apps.products.serializers import (
     ProductSerializer,
@@ -37,12 +39,16 @@ class ProductListCreateView(APIView):
 
         search_query = request.query_params.get('q', '').strip()
         if search_query:
-            queryset = queryset.filter(
-                Q(title__icontains=search_query) |
-                Q(description__icontains=search_query) |
-                Q(caracteristicas_ads__icontains=search_query) |
-                Q(category__name__icontains=search_query)
-            )
+            # Sanitización rigurosa anti-XSS e inyección de caracteres (OWASP)
+            # Purga caracteres especiales peligrosos como [ } * < > \ ; ^ $ ~ | `
+            clean_search = re.sub(r'[<>{}\[\]*\\;^$|~`]', '', search_query).strip()
+            if clean_search:
+                queryset = queryset.filter(
+                    Q(title__icontains=clean_search) |
+                    Q(description__icontains=clean_search) |
+                    Q(caracteristicas_ads__icontains=clean_search) |
+                    Q(category__name__icontains=clean_search)
+                )
 
         category_param = request.query_params.get('category', '').strip()
         if category_param:

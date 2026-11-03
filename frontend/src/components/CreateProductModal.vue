@@ -14,6 +14,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import { useProductStore } from '../stores/products'
+import { blockDangerousCharsOnKeypress, sanitizeInput, sanitizeEventInput } from '../utils/security'
 
 const authStore = useAuthStore()
 const productStore = useProductStore()
@@ -76,6 +77,11 @@ function handleFileChange(event) {
 async function handleSubmit() {
   errorMessage.value = ''
   successMessage.value = ''
+
+  // Sanitización contra inyección de código y ataques XSS (OWASP)
+  formData.title = sanitizeInput(formData.title)
+  formData.description = sanitizeInput(formData.description)
+  formData.caracteristicas_ads = sanitizeInput(formData.caracteristicas_ads)
 
   if (!formData.title || formData.title.length < 3) {
     errorMessage.value = 'El nombre del producto debe tener al menos 3 caracteres.'
@@ -191,6 +197,8 @@ async function handleSubmit() {
             <input
               v-model="formData.title"
               type="text"
+              @keypress="blockDangerousCharsOnKeypress"
+              @input="e => sanitizeEventInput(e, v => formData.title = v)"
               placeholder="Ej: Teclado Mecánico Inalámbrico RGB Switch Brown"
               required
               class="w-full p-2.5 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#3483FA]"
@@ -283,6 +291,8 @@ async function handleSubmit() {
             <textarea
               v-model="formData.caracteristicas_ads"
               rows="3"
+              @keypress="blockDangerousCharsOnKeypress"
+              @input="e => sanitizeEventInput(e, v => formData.caracteristicas_ads = v)"
               placeholder="Ingresa las especificaciones técnicas completas y detalles de uso (mínimo 250 caracteres)..."
               required
               :class="[!isAdsValid ? 'border-red-300 focus:ring-red-400' : 'border-gray-300 focus:ring-[#3483FA]']"
@@ -303,6 +313,8 @@ async function handleSubmit() {
             <textarea
               v-model="formData.description"
               rows="2"
+              @keypress="blockDangerousCharsOnKeypress"
+              @input="e => sanitizeEventInput(e, v => formData.description = v)"
               placeholder="Descripción general, estado y garantía..."
               required
               class="w-full p-2.5 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#3483FA]"

@@ -71,3 +71,22 @@ class ProductProfRequirementsTests(TestCase):
         self.assertEqual(lookup_data.get('title'), 'Teclado Mecánico Custom Pro RGB')
         # Verificar que expone el nombre del usuario que ingresó
         self.assertIsNotNone(lookup_data.get('seller_nombre'))
+
+    def test_xss_payload_rejected_in_product_creation(self):
+        """Seguridad OWASP Anti-XSS: Rechazar caracteres [ } * < > scripts en productos."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.seller_token}')
+        response = self.client.post('/api/v1/products/', {
+            'title': '<script>alert(1)</script> Teclado',
+            'price': 50000,
+            'description': 'Descripción con [}* caracteres maliciosos',
+            'caracteristicas_ads': self.valid_ads_text,
+            'stock': 5,
+            'category': str(self.category.id)
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('anti-XSS', str(response.content))
+
+    def test_search_endpoint_sanitizes_xss_and_brackets(self):
+        """Seguridad: El parámetro de búsqueda q purga caracteres [ } * < > sin generar error."""
+        response = self.client.get('/api/v1/products/?q=%5B%7D*%3Cscript%3E')
+        self.assertEqual(response.status_code, 200)

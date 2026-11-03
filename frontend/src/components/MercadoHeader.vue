@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
 import { useLocationStore } from '../stores/location'
+import { blockDangerousCharsOnKeypress, sanitizeInput, sanitizeEventInput } from '../utils/security'
 import {
   Search,
   ShoppingCart,
@@ -24,8 +25,16 @@ const locationStore = useLocationStore()
 
 const localSearch = ref('')
 
+function onSearchInput(event) {
+  sanitizeEventInput(event, (cleaned) => {
+    localSearch.value = cleaned
+  })
+}
+
 function handleSearch() {
-  productStore.setSearch(localSearch.value)
+  const safeQuery = sanitizeInput(localSearch.value)
+  localSearch.value = safeQuery
+  productStore.setSearch(safeQuery)
 }
 
 function handleSellClick() {
@@ -61,6 +70,8 @@ function handleSellClick() {
             <input
               v-model="localSearch"
               type="text"
+              @keypress="blockDangerousCharsOnKeypress"
+              @input="onSearchInput"
               placeholder="Buscar productos, marcas, computación y más..."
               class="w-full bg-white text-gray-800 text-sm pl-4 pr-12 py-2.5 rounded-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-[#3483FA] placeholder-gray-400"
             />

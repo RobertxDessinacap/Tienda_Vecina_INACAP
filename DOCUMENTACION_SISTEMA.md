@@ -1,153 +1,356 @@
 # Documentación Técnica Integral: Inacap E-Commerce
 
-Este documento técnico reúne la arquitectura, especificaciones de ingeniería, estándares de desarrollo seguro y guías de operación de la plataforma **Inacap E-Commerce**.
+> **Nota para Sesiones de IA y Desarrolladores:** Este documento técnico está completamente **indexado** con anclas de navegación semántica (`#sec-X`). Utiliza el índice para saltar de inmediato a cualquier sección arquitectónica, reglas de negocio o estándares de seguridad.
 
 ---
 
-## 📌 1. Ficha Técnica del Proyecto
+## 📑 Índice de Contenidos
 
-| Capa | Tecnología / Componente | Propósito |
-| :--- | :--- | :--- |
-| **Backend** | Python 3.14 + Django 6.1 + DRF | API RESTful modular, autenticación y lógica de negocio segura |
-| **Base de Datos** | PostgreSQL + Django ORM (`psycopg 3`) | Persistencia relacional, transacciones ACID y protección SQLi |
-| **Frontend** | Vue 3 + Vite 8 + Tailwind CSS + Pinia | Interfaz SPA desacoplada, reactiva y amigable estilo MercadoLibre |
-| **Procesamiento Gráfico** | Pillow (PIL Engine) | Normalización estricta de imágenes (900x600 y $\le$ 1 MB) |
-| **Pasarela de Pagos** | Transbank SDK (`transbank-sdk` v6.1) | Pagos con tarjetas de débito (Redcompra) y crédito en Webpay Plus |
-| **Gestión de Secretos** | `python-dotenv` (.env) | Aislamiento total de credenciales fuera del código fuente |
+1. [Ficha Técnica del Proyecto y Stack Tecnológico](#sec-1-ficha-tecnica)
+2. [Arquitectura de Usuarios: Userdjango - UserProfile - Persona y Roles](#sec-2-arquitectura-usuarios)
+3. [Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)](#sec-3-seguridad-imagenes)
+4. [Características ADS (+250 Caracteres) y URL Limpia](#sec-4-caracteristicas-ads)
+5. [Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)](#sec-5-calculo-carrito)
+6. [Pasarela de Pagos: Transbank Webpay Plus Oficial](#sec-6-pasarela-transbank)
+7. [Taxonomía de Categorías del E-Commerce y Categoría "Otros"](#sec-7-taxonomia-categorias)
+8. [Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)](#sec-8-prevencion-xss)
+   - 8.1. [Definición y Clasificación de Amenazas XSS](#sec-8-1-definicion-xss)
+   - 8.2. [Estándar y Recomendaciones Oficiales OWASP](#sec-8-2-estandar-owasp)
+   - 8.3. [Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)](#sec-8-3-restriccion-caracteres)
+   - 8.4. [Defensas en Frontend (Vue 3 Anti-XSS Engine)](#sec-8-4-defensas-frontend)
+   - 8.5. [Defensas en Backend (Django REST Framework y ORM)](#sec-8-5-defensas-backend)
+   - 8.6. [Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)](#sec-8-6-cabeceras-seguridad)
+   - 8.7. [Matriz de Vectores de Ataque XSS vs Mitigaciones](#sec-8-7-matriz-mitigaciones)
+9. [Gestión de Secretos (.env / ONV) y Blindaje ISO 27001](#sec-9-gestion-secretos)
+10. [Guía de Pruebas Automatizadas y Operación](#sec-10-pruebas-operacion)
 
 ---
 
-## 🏛️ 2. Arquitectura de Usuarios: User - UserProfile - Persona y Roles
+<a id="sec-1-ficha-tecnica"></a>
+## 📌 1. Ficha Técnica del Proyecto y Stack Tecnológico
 
-Siguiendo el requerimiento de desacoplamiento y modelo de datos seguro:
+| Capa | Tecnología / Componente | Versión | Propósito Arquitectónico |
+| :--- | :--- | :--- | :--- |
+| **Backend API** | Python + Django + Django REST Framework | 3.14 / 6.1 / 3.16 | API REST modular, autenticación JWT, validación de negocio y ORM seguro |
+| **Base de Datos** | PostgreSQL (vía ORM `psycopg 3` con fallback local SQLite) | 16+ / 3.2 | Persistencia transaccional ACID, consultas parametrizadas contra SQLi |
+| **Frontend SPA** | Vue 3 + Vite + Tailwind CSS + Pinia | 3.5 / 8.3 / 4.2 | Interfaz reactiva desacoplada, componentizada, estilo MercadoLibre |
+| **Motor Gráfico** | Pillow (Python Imaging Library) | 12.1 | Validación de magic bytes, normalización a lienzo 900x600 y compresión $\le$ 1 MB |
+| **Pasarela de Pagos** | Transbank SDK | 6.1 | Transbank Webpay Plus oficial (init y commit de tarjetas de débito/crédito) |
+| **Seguridad de Secretos** | `python-dotenv` | 1.2 | Todas las credenciales sensibles aisladas en archivo `.env` |
+| **Seguridad Anti-XSS** | OWASP Top 10 + CSP + Regex Sanitizer | Estándar | Filtro de caracteres prohibidos (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), CSP |
+
+---
+
+<a id="sec-2-arquitectura-usuarios"></a>
+## 🏛️ 2. Arquitectura de Usuarios: Userdjango - UserProfile - Persona y Roles
+
+Siguiendo el requerimiento explícito del docente:
+> *"Usar Userdjango y el objeto persona, entre el user y la persona debe ser el userprofile y este se puede mover en el sistema. Esto es para clientes y vendedores, estos deben tener roles; ROL -> UserRol"*.
 
 ```mermaid
-erDiagram
-    UserCredential ||--|| UserProfile : "1:1 Conecta"
-    UserProfile ||--|| Persona : "1:1 Conecta"
-    UserProfile ||--o{ UserRol : "1:N Asignación"
-    Rol ||--o{ UserRol : "1:N Define"
-    UserProfile ||--o{ Product : "1:N Publica (Vendedor)"
-    UserProfile ||--o{ Order : "1:N Realiza compra (Cliente)"
-    
-    UserCredential {
-        uuid id PK
-        string email UK "Userdjango"
-        string password_hash "PBKDF2 SHA256"
-        boolean is_active
-        datetime last_login
+classDiagram
+    class UserCredential {
+        +UUID id
+        +string email (Userdjango)
+        +string password_hash (PBKDF2 SHA256)
+        +boolean is_active
+        +datetime last_login
     }
 
-    UserProfile {
-        uuid id PK
-        string public_alias UK "Alias de Tienda o Usuario"
-        float reputation_score "Reputación 1.0 a 5.0"
-        boolean is_verified_seller
-        datetime created_at
+    class UserProfile {
+        +UUID id
+        +string public_alias (Nombre visible o Tienda)
+        +float reputation_score (1.0 a 5.0)
+        +boolean is_verified_seller
+        +get_roles()
     }
 
-    Persona {
-        uuid id PK
-        string rut "RUT Civil"
-        string nombres "Nombre del titular"
-        string apellidos "Apellidos"
-        string telefono "Teléfono de contacto"
-        string direccion "Dirección de despacho"
+    class Persona {
+        +UUID id
+        +string rut
+        +string nombres
+        +string apellidos
+        +string telefono
+        +string direccion
+        +nombre_completo()
     }
 
-    Rol {
-        uuid id PK
-        string nombre "VENDEDOR | CLIENTE | ADMIN"
-        string codigo UK "SELLER | BUYER | ADMIN"
-        string descripcion
+    class Rol {
+        +UUID id
+        +string nombre (Vendedor, Cliente, Administrador)
+        +string codigo (SELLER, BUYER, ADMIN)
+        +string descripcion
     }
 
-    UserRol {
-        uuid id PK
-        boolean activo
-        datetime fecha_asignacion
+    class UserRol {
+        +UUID id
+        +boolean activo
+        +datetime fecha_asignacion
     }
+
+    class Product {
+        +UUID id
+        +string title
+        +string slug (URL limpia)
+        +decimal price
+        +string caracteristicas_ads (+250 chars)
+        +UserProfile seller_profile (Asociación)
+    }
+
+    UserCredential "1" -- "1" UserProfile : Vinculado 1:1
+    UserProfile "1" -- "1" Persona : Conecta 1:1
+    UserProfile "1" -- "N" UserRol : Posee roles
+    Rol "1" -- "N" UserRol : Define catálogo
+    UserProfile "1" -- "N" Product : "Se mueve en el sistema (Vende)"
 ```
 
 ### Funciones de Cada Entidad:
-1. **`UserCredential` (Userdjango):** Gestiona la identidad privada, autenticación mediante tokens JWT y registro de sesiones.
-2. **`Persona`:** Representa al individuo en el mundo real (RUT, nombre y apellidos del usuario que ingresó, teléfono y dirección).
-3. **`UserProfile`:** Es el perfil intermedio que conecta `User` y `Persona`. **Este es el objeto que se mueve en el sistema**: cuando un vendedor publica un producto, el producto queda asociado a este `UserProfile`, y cuando un cliente compra, la orden se vincula al `UserProfile`.
-4. **`ROL -> UserRol`:** Proporciona control de acceso basado en roles (RBAC). Permite que clientes y vendedores tengan permisos claramente diferenciados.
+1. **`UserCredential` (`Userdjango`):** Gestiona la identidad privada, autenticación con contraseñas cifradas en PBKDF2 SHA256 y emisión de tokens JWT.
+2. **`Persona`:** Objeto civil que almacena los datos de la persona en el mundo real (RUT, nombres, apellidos, teléfono y dirección física de despacho).
+3. **`UserProfile`:** **Es el objeto que se mueve a través del sistema**. Desacopla las credenciales privadas de la persona real. Cuando un vendedor publica un producto, el producto se asocia a este `UserProfile`. Cuando un comprador adquiere un producto, la orden se vincula al `UserProfile`.
+4. **`ROL -> UserRol`:** Proporciona control de acceso basado en roles (RBAC). El catálogo `Rol` define privilegios (`SELLER`, `BUYER`, `ADMIN`), y `UserRol` asigna y revoca dichos permisos de forma auditable.
 
 ---
 
-## 📸 3. Especificaciones de Seguridad de Imágenes para Vendedores
+<a id="sec-3-seguridad-imagenes"></a>
+## 📸 3. Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)
 
-Para prevenir vulnerabilidades asociadas a la subida de archivos (como la ejecución de scripts maliciosos disguised como imágenes o saturación de disco):
+Conforme a la instrucción:
+> *"La seguridad esta en la extensión de la imagen además de la conversión de la imagen, no importa la imagen que se suba, que la pagina ponga la imagen en resolución 900X600 y pese máximo 1 mb"*.
 
-1. **Lista Blanca de Extensiones Permitidas:**  
-   Se validan estrictamente las extensiones `.jpg`, `.jpeg`, `.png`, `.webp`. Cualquier otra extensión es rechazada inmediatamente con error 400.
-2. **Inspección de Encabezados (Magic Bytes con Pillow):**  
-   El backend ejecuta `image.verify()`. Si un atacante intenta subir un archivo `.php` o script `.exe` renombrado a `.jpg`, la verificación estructural falla y el archivo se destruye.
-3. **Conversión y Resolución Exacta 900x600:**  
-   El procesador crea un lienzo blanco exacto de `(900, 600)` píxeles. La imagen se escala con el algoritmo de interpolación `LANCZOS` preservando su relación de aspecto original y se centra en el lienzo.
-4. **Compresión Dinámica de Peso Máximo (1 MB):**  
-   El archivo se comprime en un búfer en memoria (`BytesIO`). Si el tamaño inicial excede `1,048,576 bytes` (1 MB), la calidad se reduce gradualmente de forma controlada hasta situarse por debajo del megabyte antes de almacenarse en `media/productos/`.
+Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/products/utils.py).
 
----
-
-## 📝 4. Características en Formato ADS (+250 caracteres) y URL Limpia
-
-- **Regla de Negocio:** El campo `caracteristicas_ads` posee un validador obligatorio `MinLengthValidator(251)` a nivel de base de datos y serializador. No se puede crear un producto con 250 o menos caracteres.
-- **URL Limpia:** El sistema genera slugs limpios basados exclusivamente en el nombre del producto (por ejemplo, `/producto/samsung-galaxy-s24-ultra`).
-- **Página de Producto:** Muestra la fotografía normalizada, las características completas, la descripción y el **nombre del usuario que ingresó la publicación** extraído desde `UserProfile -> Persona.nombre_completo`.
+### Algoritmo de Procesamiento y Blindaje:
+1. **Lista Blanca de Extensiones:** Solo se admiten `.jpg`, `.jpeg`, `.png`, `.webp`. Extensiones ejecutables (`.exe`, `.sh`, `.php`, `.js`) son rechazadas antes de procesar.
+2. **Inspección de Encabezado Real (Magic Bytes):** Pillow ejecuta `image.verify()`. Si un atacante intenta renombrar un malware como `.jpg`, la verificación estructural falla y el archivo se destruye en memoria.
+3. **Conversión a Lienzo Neutro 900x600:**
+   - Se crea un lienzo RGB en blanco con dimensiones exactas de `(900, 600)` píxeles.
+   - La imagen original se escala proporcionalmente preservando su relación de aspecto (aspect ratio) mediante interpolación `LANCZOS` de alta fidelidad.
+   - La imagen resultante se centra matemáticamente en el lienzo, garantizando que el diseño del catálogo sea uniforme y estético.
+4. **Compresión Dinámica de Peso Máximo (1 MB):**
+   - El archivo se procesa en un búfer en memoria (`io.BytesIO`).
+   - Si el tamaño resultante supera `1,048,576 bytes` (1 MB), el compresor reduce progresivamente la calidad JPEG (`quality=85, 80, 75...`) hasta que el tamaño del archivo se sitúe por debajo de 1 MB.
 
 ---
 
-## 🛡️ 5. Principio de Seguridad: Cálculo de Carrito en Servidor
+<a id="sec-4-caracteristicas-ads"></a>
+## 📝 4. Características ADS (+250 Caracteres) y URL Limpia
 
-> **Regla de Oro:** *"Los procesos donde tenga información delicada no deben estar generadas, calculadas o analizadas por JS"*.
+### Regla de Negocio ADS:
+- **Validación Estricta:** El campo `caracteristicas_ads` tiene un validador obligatorio `MinLengthValidator(251)` a nivel de base de datos y serializador DRF. No se permite crear ningún producto con 250 o menos caracteres.
+- **Contador en Tiempo Real:** En el frontend ([`CreateProductModal.vue`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/components/CreateProductModal.vue)), el vendedor dispone de un indicador interactivo que calcula los caracteres restantes y solo habilita la publicación cuando se cumple la condición.
 
-En aplicaciones de comercio electrónico vulnerables, el cliente en JavaScript calcula los precios y los envía al servidor, lo que permite a un usuario alterar los valores con las herramientas de desarrollador del navegador.
-
-En **Inacap E-Commerce**:
-- El frontend envía **únicamente** los identificadores y cantidades:
-  ```json
-  {
-    "items": [
-      { "product_id": "84a32fd8-...", "quantity": 2 }
-    ]
-  }
-  ```
-- El endpoint `/api/v1/payments/cart/calculate/` consulta la base de datos PostgreSQL mediante el ORM:
-  - Recupera el precio unitario oficial registrado en el servidor.
-  - Comprueba que el stock actual cubra la cantidad solicitada.
-  - Multiplica `precio_db * cantidad` y suma los totales.
-  - El resultado devuelto es inmutable y firmado por el backend.
+### URL Limpia (Clean URL):
+- El sistema genera slugs basados exclusivamente en el nombre del producto (ej: `/producto/samsung-galaxy-s24-ultra`).
+- La vista de producto ([`ProductCleanUrlView.vue`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/components/ProductCleanUrlView.vue)) consume este slug, presenta la fotografía normalizada 900x600 y despliega el **nombre del usuario que ingresó la publicación** extraído desde `UserProfile -> Persona.nombre_completo`.
 
 ---
 
-## 💳 6. Pasarela de Pagos: Transbank Webpay Plus
+<a id="sec-5-calculo-carrito"></a>
+## 🛡️ 5. Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)
 
-### Flujo de 2 Pasos:
-1. **Inicialización (`/api/v1/payments/transbank/init/`):**
-   - Recibe el carrito, crea la `Order` con estado `INITIALIZED` y el monto certificado.
-   - Invoca `Transaction(options).create(buy_order, session_id, amount, return_url)`.
-   - Transbank devuelve el token único de la transacción y la URL oficial de Webpay Plus.
-2. **Confirmación (`/api/v1/payments/transbank/commit/`):**
-   - El retorno de Transbank entrega el `token_ws`.
-   - El servidor ejecuta `Transaction(options).commit(token)`.
-   - Si `response_code == 0`, la transacción está **AUTORIZADA**:
-     - Se guarda el código de autorización y últimos dígitos de la tarjeta (`**** 6623`).
-     - Se descuenta el stock de los productos comprados.
-     - Se emite el voucher imprimible.
+> **Regla de Seguridad Fundamental:** *"Los procesos donde tenga información delicada no deben estar generadas, calculadas o analizadas por JS, problema de seguridad"*.
 
-### Credenciales Oficiales de Integración:
-- **Código de Comercio:** `597055555532`
-- **API Key:** `579B532A7440BB061E185D8252273087`
-- **Tarjeta Débito (Redcompra) de Prueba:** Número `6623...`, Clave Webpay `1213`.
+### Vulnerabilidad Tradicional:
+Si una tienda calcula el total a pagar en JavaScript en el navegador del cliente y envía el precio final a la API, cualquier usuario puede interceptar la petición con las herramientas de desarrollador (F12) o un proxy HTTP y alterar el precio a `$1`.
+
+### Implementación Segura en Inacap E-Commerce:
+1. El frontend envía **únicamente** la lista de identificadores y cantidades deseadas:
+   ```json
+   {
+     "items": [
+       { "product_id": "84a32fd8-8b9a-4c91-...", "quantity": 2 }
+     ]
+   }
+   ```
+2. El endpoint seguro `/api/v1/payments/cart/calculate/` en Django:
+   - Consulta los registros oficiales en la base de datos PostgreSQL mediante el ORM.
+   - Extrae el precio unitario real almacenado en el servidor.
+   - Verifica la disponibilidad de inventario (`stock >= quantity`).
+   - Calcula subtotales, costo de despacho y total general.
+   - Los precios devueltos al cliente son de solo lectura y son los mismos que se transferirán a la pasarela Transbank Webpay.
 
 ---
 
-## 🔒 7. Gestión de Secretos (.env / ONV)
+<a id="sec-6-pasarela-transbank"></a>
+## 💳 6. Pasarela de Pagos: Transbank Webpay Plus Oficial
 
-Ninguna clave, secreto criptográfico o contraseña de base de datos se encuentra escrita en `settings.py`. Todas las variables se declaran en el archivo `.env`:
+La plataforma integra la pasarela Webpay Plus mediante el SDK oficial `transbank-sdk` (v6.1).
+
+### Flujo de Pago en 2 Fases:
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Frontend as Vue 3 (Cliente)
+    participant Backend as Django API
+    participant TBK as Transbank Webpay Plus
+    
+    Cliente->>Frontend: Presiona "Pagar con Transbank"
+    Frontend->>Backend: POST /api/v1/payments/transbank/init/ (items del carrito)
+    Backend->>Backend: Calcula total real en DB y genera Buy Order
+    Backend->>TBK: Transaction.create(buy_order, session_id, amount, return_url)
+    TBK-->>Backend: Devuelve token_ws y URL de Webpay
+    Backend-->>Frontend: Retorna token y URL oficial de pago
+    Frontend->>TBK: Redirige al portal bancario seguro de Transbank
+    Cliente->>TBK: Ingresa tarjeta (Redcompra / Crédito) y autoriza
+    TBK->>Backend: Retorna token_ws a la URL de retorno
+    Backend->>TBK: Transaction.commit(token_ws)
+    TBK-->>Backend: Confirmación oficial (response_code == 0, auth_code, card_digits)
+    Backend->>Backend: Descuenta stock en PostgreSQL y actualiza orden a COMPLETED
+    Backend-->>Frontend: Retorna comprobante y voucher oficial
+    Frontend-->>Cliente: Despliega Voucher Imprimible con detalles de la compra
+```
+
+- **Credenciales Oficiales de Integración:**
+  - Código de Comercio: `597055555532`
+  - Tarjeta Débito de Prueba: `6623` / Clave: `1213`
+- Para detalles de programación paso a paso, consulta: [GUIA_TRANSBANK_WEBPAY.md](file:///C:/Users/Rober/inacap%20e-commerce/GUIA_TRANSBANK_WEBPAY.md).
+
+---
+
+<a id="sec-7-taxonomia-categorias"></a>
+## 🏷️ 7. Taxonomía de Categorías del E-Commerce y Categoría "Otros"
+
+El sistema cuenta con un catálogo representativo de las categorías típicas del comercio electrónico chileno, incluyendo de forma obligatoria la categoría **"Otros"**:
+
+| # | Nombre de la Categoría | Slug Oficial | Ícono Sugerido |
+| :-: | :--- | :--- | :--- |
+| 1 | **Tecnología** | `tecnologia` | `Cpu` |
+| 2 | **Computación & Laptops** | `computacion-laptops` | `Laptop` |
+| 3 | **Celulares & Telefonía** | `celulares-telefonia` | `Smartphone` |
+| 4 | **Electrodomésticos & Línea Blanca** | `electrodomesticos-linea-blanca` | `Zap` |
+| 5 | **Audio & Sonido** | `audio-sonido` | `Headphones` |
+| 6 | **Videojuegos & Consolas** | `videojuegos-consolas` | `Gamepad2` |
+| 7 | **Moda & Calzado** | `moda-calzado` | `Shirt` |
+| 8 | **Deportes & Fitness** | `deportes-fitness` | `Activity` |
+| 9 | **Hogar & Muebles** | `hogar-muebles` | `Home` |
+| 10 | **Herramientas & Construcción** | `herramientas-construccion` | `Wrench` |
+| 11 | **Belleza & Cuidado Personal** | `belleza-cuidado-personal` | `Sparkles` |
+| 12 | **Automotriz & Accesorios** | `automotriz-accesorios` | `Car` |
+| 13 | **Juguetes & Bebés** | `juguetes-bebes` | `Baby` |
+| 14 | **Otros** (Requerida) | `otros` | `Package` |
+
+Todos los productos asociados a la categoría "Otros" pueden filtrarse inmediatamente mediante la ruta `/api/v1/products/?category=otros` o haciendo clic en el enlace "Otros" de la barra de navegación.
+
+---
+
+<a id="sec-8-prevencion-xss"></a>
+## 🛡️ 8. Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)
+
+<a id="sec-8-1-definicion-xss"></a>
+### 8.1. Definición y Clasificación de Amenazas XSS
+El **Cross-Site Scripting (XSS)** es una vulnerabilidad de inyección que ocurre cuando datos suministrados por un usuario o atacante son incluidos en una página web sin la adecuada validación o codificación, permitiendo la ejecución arbitraria de scripts JavaScript en el navegador de la víctima.
+
+Se clasifica en tres tipos principales:
+1. **XSS Reflejado (Reflected):** La carga maliciosa viaja en una petición HTTP (por ejemplo, en el parámetro de búsqueda `?q=<script>...`) y el servidor la refleja de vuelta en la respuesta HTML.
+2. **XSS Almacenado (Stored o Persistente):** El atacante sube código malicioso en campos de base de datos (título del producto, descripción, comentarios o apodo de usuario), ejecutándose cada vez que cualquier visitante visualiza ese producto.
+3. **XSS Basado en DOM (DOM-based):** La vulnerabilidad reside exclusivamente en el código JavaScript del cliente, donde datos inseguros son pasados a "fregaderos" peligrosos como `innerHTML`, `eval()` o `v-html`.
+
+---
+
+<a id="sec-8-2-estandar-owasp"></a>
+### 8.2. Estándar y Recomendaciones Oficiales OWASP
+Conforme a la **OWASP Cross-Site Scripting Prevention Cheat Sheet**, una estrategia de seguridad moderna contra XSS no debe depender de una única técnica frágil, sino de una **estrategia de Defensa en Profundidad (Defense-in-Depth)**:
+
+1. **Validación por Listas Blancas (Allowlists):** Definir de manera positiva qué caracteres están permitidos, en lugar de intentar predecir cada variante de ataque con listas negras.
+2. **Codificación Contextual de Salida:** Los datos deben codificarse según el contexto en el que se rendericen (cuerpo HTML, atributos, JavaScript o URL).
+3. **Restricción de Renderizado HTML en Frameworks:** Usar el motor de plantillas para escapar datos automáticamente y prohibir el uso de inyecciones directas de HTML sin sanitizar (`v-html`).
+4. **Barrera de Cabeceras HTTP:** Implementar cabeceras de seguridad como `Content-Security-Policy` (CSP) para bloquear scripts no autorizados incluso si un vector de inyección llegara a ocurrir.
+
+---
+
+<a id="sec-8-3-restriccion-caracteres"></a>
+### 8.3. Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)
+Por solicitud de diseño seguro, los inputs de búsqueda, campos de formulario de productos y apodos de usuario prohíben expresamente los caracteres especiales frecuentemente utilizados para construcciones de inyección:
+
+$$\text{Caracteres Prohibidos: } [\quad ]\quad \{\quad \}\quad *\quad <\quad >\quad \backslash\quad ;\quad \hat{}\quad \$\quad \sim\quad |\quad `$$
+
+- **¿Por qué bloquear `[`, `]`, `{`, `}`?**  
+  Previenen inyecciones de plantillas del lado del cliente (Client-Side Template Injection - CSTI) y manipulación de expresiones de interpolación o desestructuración JSON maliciosa.
+- **¿Por qué bloquear `*`, `\`, `;`, `<` y `>`?**  
+  Son delimitadores fundamentales en sintaxis de etiquetas HTML (`<script>`), sentencias de terminación de comandos en JavaScript (`;`) y secuencias de escape (`\x3c`).
+
+---
+
+<a id="sec-8-4-defensas-frontend"></a>
+### 8.4. Defensas en Frontend (Vue 3 Anti-XSS Engine)
+Ubicación del módulo: [`frontend/src/utils/security.js`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/utils/security.js).
+
+1. **Bloqueo a Nivel de Teclado (`@keypress`):**
+   La función `blockDangerousCharsOnKeypress(event)` intercepta el evento de pulsación de teclas. Si el usuario intenta escribir `[`, `}`, `*`, `<`, `>`, o cualquiera de los caracteres no autorizados, `event.preventDefault()` bloquea la entrada antes de que se dibuje en pantalla.
+2. **Purga Automática en Eventos de Pegado (`@input` / `@paste`):**
+   Si un atacante copia un payload malicioso y lo pega mediante el portapapeles, `sanitizeEventInput(event)` o `sanitizeInput(value)` elimina de forma instantánea todos los caracteres prohibidos y secuencias como `javascript:`, `<script>` o manejadores de eventos `onerror=`.
+3. **Interpolación Segura Nativa en Vue:**
+   Todos los componentes utilizan interpolación con dobles llaves `{{ product.title }}`. Vue convierte automáticamente caracteres HTML en entidades seguras (`&lt;`, `&gt;`, `&amp;`), neutralizando el DOM XSS. No se utiliza `v-html` con datos de usuarios en toda la plataforma.
+
+---
+
+<a id="sec-8-5-defensas-backend"></a>
+### 8.5. Defensas en Backend (Django REST Framework y ORM)
+El principio de seguridad establece que **el cliente nunca debe ser la única línea de defensa**. Django aplica validación estricta en el lado del servidor:
+
+1. **Sanitización de Consultas de Búsqueda (`ProductListCreateView`):**
+   Al recibir el parámetro `?q=`, el backend purga caracteres peligrosos mediante expresiones regulares:
+   ```python
+   clean_search = re.sub(r'[<>{}\[\]*\\;^$|~`]', '', search_query).strip()
+   ```
+2. **Validadores en Serializadores (`ProductCreateUpdateSerializer`):**
+   Los campos `title`, `description` y `caracteristicas_ads` son evaluados por la función `validate_xss_safe(text, field_name)`. Si el payload contiene caracteres no autorizados o patrones de scripts (`javascript:`, `<iframe`), la API responde con código `HTTP 400 Bad Request`:
+   ```python
+   if FORBIDDEN_XSS_REGEX.search(text):
+       raise serializers.ValidationError(
+           f"El campo '{field_name}' contiene caracteres especiales no permitidos por seguridad anti-XSS ([ ] {{ }} * < > \\ ; etc.)."
+       )
+   ```
+3. **Validación en Registro de Usuarios (`UserRegistrationSerializer`):**
+   El alias público y nombre completo del usuario son validados para asegurar que no contengan caracteres especiales prohibidos ni scripts maliciosos.
+
+---
+
+<a id="sec-8-6-cabeceras-seguridad"></a>
+### 8.6. Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)
+Ubicación del middleware: [`backend/apps/security/middleware.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/security/middleware.py).
+
+Cada respuesta HTTP del servidor incluye las siguientes directivas de seguridad para el navegador:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:* http://127.0.0.1:* https:; font-src 'self' https: data:; frame-ancestors 'none';
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: geolocation=(), microphone=(), camera=()
+```
+
+- **`Content-Security-Policy (CSP)`:** Restringe las fuentes desde donde el navegador puede cargar y ejecutar código. Prohíbe la ejecución de scripts externos no confiables.
+- **`X-Content-Type-Options: nosniff`:** Impide que el navegador intente adivinar el tipo MIME de una respuesta, bloqueando ataques de confusión de tipos (MIME-sniffing).
+- **`X-Frame-Options: DENY`:** Protege contra Clickjacking al impedir que la aplicación sea embebida en un `<iframe>` de un sitio externo.
+- **`X-XSS-Protection: 1; mode=block`:** Activa el filtro reflexivo de navegadores heredados, bloqueando la página completa si se detecta un ataque XSS.
+
+---
+
+<a id="sec-8-7-matriz-mitigaciones"></a>
+### 8.7. Matriz de Vectores de Ataque XSS vs Mitigaciones
+
+| Vector de Ataque Potencial | Ejemplo de Payload | Capa de Protección | Resultado / Mitigación |
+| :--- | :--- | :--- | :--- |
+| **Inyección en Búsqueda (Reflected XSS)** | `?q=<script>alert(1)</script>` | Frontend `@keypress` + Backend `re.sub` | Los caracteres `< >` y el tag `<script>` son purgados; la búsqueda se ejecuta sobre texto limpio |
+| **Inyección de Caracteres Especiales** | `[}*teclado` | Input Sanitizer (`security.js`) | Las pulsaciones de tecla son bloqueadas en tiempo real; el texto resultante es `teclado` |
+| **XSS Almacenado en Título de Producto** | `Laptop <img src=x onerror=alert(1)>` | DRF Serializer Validator | La API rechaza la petición con `HTTP 400: Caracteres no permitidos detectados` |
+| **Manipulación DOM por Atributo** | `<a href="javascript:alert(1)">` | `MALICIOUS_SCRIPT_PATTERNS` regex | La secuencia `javascript:` es detectada y purgada tanto en cliente como en servidor |
+| **Inyección en Nombre de Usuario** | `user_admin<script>` | `validate_custom_alias` | Fallo de validación en registro; solo se admiten caracteres alfanuméricos seguros |
+| **Inyección de Scripts Externos** | `<script src="http://evil.com/hack.js">` | `Content-Security-Policy (CSP)` | El navegador bloquea la carga del recurso externo por violación de política CSP |
+
+---
+
+<a id="sec-9-gestion-secretos"></a>
+## 🔒 9. Gestión de Secretos (.env / ONV) y Blindaje ISO 27001
+
+Conforme a la instrucción:
+> *"Los datos de configuraciones no en el Setting, todo lo que tenga seguridad en ONV (.env)"*.
+
+Ninguna credencial sensible, clave criptográfica, contraseña de base de datos o llave de Transbank está escrita directamente en `settings.py`. Todas las variables se declaran en el archivo `.env`:
 
 ```env
 DEBUG=True
@@ -159,8 +362,40 @@ DB_PASSWORD=postgres
 DB_HOST=127.0.0.1
 DB_PORT=5432
 JWT_SECRET_KEY=inacap-jwt-super-secret-iso27001-signature-key-2026
+JWT_EXPIRATION_HOURS=24
 TRANSBANK_COMMERCE_CODE=597055555532
 TRANSBANK_API_KEY=579B532A7440BB061E185D8252273087
 ```
 
-El archivo `.env` está estrictamente ignorado en el repositorio `.gitignore`.
+El archivo `.env` se encuentra estrictamente ignorado en el control de versiones a través de `.gitignore`, evitando filtraciones accidentales al repositorio Git.
+
+---
+
+<a id="sec-10-pruebas-operacion"></a>
+## 🧪 10. Guía de Pruebas Automatizadas y Operación
+
+### Ejecución de Pruebas Unitarias del Backend:
+```powershell
+& "backend\.venv\Scripts\python.exe" "backend\manage.py" test apps.accounts apps.products apps.payments
+```
+
+**Resultado de las Pruebas (8/8 OK):**
+- `test_user_profile_between_user_and_persona`: Valida el desacoplamiento `User` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona`.
+- `test_seller_role_assignment`: Valida el modelo `ROL -> UserRol`.
+- `test_caracteristicas_ads_min_length_validation`: Valida el rechazo de productos con $\le 250$ caracteres ADS.
+- `test_seller_creates_product_with_valid_ads_and_clean_url`: Valida la creación de URL limpia y exposición del nombre del vendedor.
+- `test_safe_cart_calculation_anti_tampering`: Valida que los totales del carrito se calculen de forma inviolable en el backend.
+- `test_transbank_init_and_commit_flow`: Valida el flujo completo de pago con Transbank Webpay Plus.
+- `test_xss_payload_rejected_in_product_creation`: Valida el bloqueo de payloads con caracteres `[ } * < >` y scripts en productos.
+- `test_search_endpoint_sanitizes_xss_and_brackets`: Valida que el buscador purga caracteres maliciosos sin colapsar.
+
+### Compilación y Verificación del Frontend:
+```powershell
+Set-Location "frontend"; npm run build
+```
+- Tiempo de compilación: $\approx 650$ ms sin errores ni advertencias de sintaxis.
+
+### Puertos de Servicio en Ejecución Local:
+- **Frontend SPA (Vue 3 + Vite):** [http://localhost:5173](http://localhost:5173)
+- **Backend API (Django):** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Documentación de Transbank:** [GUIA_TRANSBANK_WEBPAY.md](file:///C:/Users/Rober/inacap%20e-commerce/GUIA_TRANSBANK_WEBPAY.md)

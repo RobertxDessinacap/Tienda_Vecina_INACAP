@@ -77,12 +77,43 @@ class Command(BaseCommand):
             buyer_profile.save()
             self.stdout.write(self.style.SUCCESS('Creado Comprador: comprador@inacap.cl (Comprador1234!)'))
 
-        # 3. Categorías
-        cat_tech, _ = Category.objects.get_or_create(name='Tecnología & Celulares', defaults={'icon_name': 'Smartphone'})
-        cat_comp, _ = Category.objects.get_or_create(name='Computación & Laptops', defaults={'icon_name': 'Laptop'})
-        cat_audio, _ = Category.objects.get_or_create(name='Audio & Sonido', defaults={'icon_name': 'Headphones'})
-        cat_moda, _ = Category.objects.get_or_create(name='Moda & Calzado', defaults={'icon_name': 'Shirt'})
-        cat_hogar, _ = Category.objects.get_or_create(name='Hogar & Muebles', defaults={'icon_name': 'Home'})
+        # 3. Categorías Típicas de E-Commerce y Categoría Obligatoria "Otros"
+        categories_data = [
+            {'name': 'Tecnología', 'icon_name': 'Cpu', 'slug': 'tecnologia'},
+            {'name': 'Computación & Laptops', 'icon_name': 'Laptop', 'slug': 'computacion-laptops'},
+            {'name': 'Celulares & Telefonía', 'icon_name': 'Smartphone', 'slug': 'celulares-telefonia'},
+            {'name': 'Electrodomésticos & Línea Blanca', 'icon_name': 'Zap', 'slug': 'electrodomesticos-linea-blanca'},
+            {'name': 'Audio & Sonido', 'icon_name': 'Headphones', 'slug': 'audio-sonido'},
+            {'name': 'Videojuegos & Consolas', 'icon_name': 'Gamepad2', 'slug': 'videojuegos-consolas'},
+            {'name': 'Moda & Calzado', 'icon_name': 'Shirt', 'slug': 'moda-calzado'},
+            {'name': 'Deportes & Fitness', 'icon_name': 'Activity', 'slug': 'deportes-fitness'},
+            {'name': 'Hogar & Muebles', 'icon_name': 'Home', 'slug': 'hogar-muebles'},
+            {'name': 'Herramientas & Construcción', 'icon_name': 'Wrench', 'slug': 'herramientas-construccion'},
+            {'name': 'Belleza & Cuidado Personal', 'icon_name': 'Sparkles', 'slug': 'belleza-cuidado-personal'},
+            {'name': 'Automotriz & Accesorios', 'icon_name': 'Car', 'slug': 'automotriz-accesorios'},
+            {'name': 'Juguetes & Bebés', 'icon_name': 'Baby', 'slug': 'juguetes-bebes'},
+            {'name': 'Otros', 'icon_name': 'Package', 'slug': 'otros'},
+        ]
+
+        categories_dict = {}
+        for c in categories_data:
+            cat_obj, _ = Category.objects.get_or_create(
+                slug=c['slug'],
+                defaults={'name': c['name'], 'icon_name': c['icon_name']}
+            )
+            # Asegurar nombre actualizado
+            cat_obj.name = c['name']
+            cat_obj.icon_name = c['icon_name']
+            cat_obj.save()
+            categories_dict[c['slug']] = cat_obj
+
+        cat_tech = categories_dict['celulares-telefonia']
+        cat_comp = categories_dict['computacion-laptops']
+        cat_audio = categories_dict['audio-sonido']
+        cat_moda = categories_dict['moda-calzado']
+        cat_hogar = categories_dict['hogar-muebles']
+        cat_games = categories_dict['videojuegos-consolas']
+        cat_otros = categories_dict['otros']
 
         # 4. Productos con características ADS de más de 250 caracteres
         demo_products = [
@@ -169,6 +200,34 @@ class Command(BaseCommand):
                 'installments': 6,
                 'rating': 4.6,
                 'reviews_count': 29,
+            },
+            {
+                'title': 'Consola Sony PlayStation 5 Slim Digital Edition 1TB SSD',
+                'description': 'Disfruta de una velocidad de carga ultrarrápida con una unidad SSD de alta velocidad, inmersión más profunda con retroalimentación háptica y gatillos adaptativos.',
+                'caracteristicas_ads': 'ESPECIFICACIONES ADS VIDEOJUEGOS: Consola PS5 Slim diseño ultra compacto con almacenamiento SSD ultra rápido de 1TB integrado para tiempos de carga casi instantáneos en juegos de última generación. Audio 3D Tempest envolvente que te sumerge en paisajes sonoros hiperrealistas. Gráficos 4K HDR a hasta 120 FPS con trazado de rayos por hardware. Incluye control inalámbrico DualSense con gatillos adaptables y micrófono integrado.',
+                'price': 499990.00,
+                'original_price': 579990.00,
+                'stock': 15,
+                'category': cat_games,
+                'image_url': 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=900&auto=format&fit=crop&q=80',
+                'free_shipping': True,
+                'installments': 12,
+                'rating': 4.9,
+                'reviews_count': 185,
+            },
+            {
+                'title': 'Kit Organizador Multiuso de Escritorio y Accesorios Tech Premium',
+                'description': 'Organizador modular multifuncional con soporte para smartphone, bandeja para cables, gestión magnética de útiles y base de fieltro antideslizante.',
+                'caracteristicas_ads': 'ESPECIFICACIONES ADS ACCESORIOS Y OTROS: Fabricado con madera de bambú natural tratada y aleación de aluminio anodizado mate aeroespacial. Dispone de 5 compartimentos modulares reconfigurables que permiten organizar tabletas, teléfonos inteligentes, cables USB tipo C, memorias externas y artículos de papelería. Base con almohadillas de goma siliconada antideslizante que protege superficies delicadas contra rayaduras y vibraciones accidentales.',
+                'price': 34990.00,
+                'original_price': 45990.00,
+                'stock': 40,
+                'category': cat_otros,
+                'image_url': 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=900&auto=format&fit=crop&q=80',
+                'free_shipping': True,
+                'installments': 3,
+                'rating': 4.7,
+                'reviews_count': 42,
             }
         ]
 

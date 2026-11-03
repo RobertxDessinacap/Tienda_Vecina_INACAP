@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import { blockDangerousCharsOnKeypress, sanitizeEventInput } from '../utils/security'
 
 const authStore = useAuthStore()
 
@@ -206,6 +207,8 @@ function fillDemo(email, pass, role = null) {
             <input
               v-model="registerForm.fullName"
               type="text"
+              @keypress="blockDangerousCharsOnKeypress"
+              @input="e => sanitizeEventInput(e, v => registerForm.fullName = v)"
               placeholder="Ej: Roberto González"
               class="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#3483FA]"
             />
@@ -216,6 +219,8 @@ function fillDemo(email, pass, role = null) {
             <input
               v-model="registerForm.customAlias"
               type="text"
+              @keypress="blockDangerousCharsOnKeypress"
+              @input="e => sanitizeEventInput(e, v => registerForm.customAlias = v)"
               :placeholder="intermediateAliasPreview || 'Ej: RobertoG o MiTienda'"
               class="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#3483FA]"
             />
