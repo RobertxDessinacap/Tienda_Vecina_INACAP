@@ -8,21 +8,28 @@
 
 1. [Ficha Técnica del Proyecto y Stack Tecnológico](#sec-1-ficha-tecnica)
 2. [Arquitectura de Usuarios: Userdjango - UserProfile - Persona y Roles](#sec-2-arquitectura-usuarios)
-3. [Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)](#sec-3-seguridad-imagenes)
-4. [Características ADS (+250 Caracteres) y URL Limpia](#sec-4-caracteristicas-ads)
-5. [Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)](#sec-5-calculo-carrito)
-6. [Pasarela de Pagos: Transbank Webpay Plus Oficial](#sec-6-pasarela-transbank)
-7. [Taxonomía de Categorías del E-Commerce y Categoría "Otros"](#sec-7-taxonomia-categorias)
-8. [Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)](#sec-8-prevencion-xss)
-   - 8.1. [Definición y Clasificación de Amenazas XSS](#sec-8-1-definicion-xss)
-   - 8.2. [Estándar y Recomendaciones Oficiales OWASP](#sec-8-2-estandar-owasp)
-   - 8.3. [Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)](#sec-8-3-restriccion-caracteres)
-   - 8.4. [Defensas en Frontend (Vue 3 Anti-XSS Engine)](#sec-8-4-defensas-frontend)
-   - 8.5. [Defensas en Backend (Django REST Framework y ORM)](#sec-8-5-defensas-backend)
-   - 8.6. [Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)](#sec-8-6-cabeceras-seguridad)
-   - 8.7. [Matriz de Vectores de Ataque XSS vs Mitigaciones](#sec-8-7-matriz-mitigaciones)
-9. [Gestión de Secretos (.env / ONV) y Blindaje ISO 27001](#sec-9-gestion-secretos)
-10. [Guía de Pruebas Automatizadas y Operación](#sec-10-pruebas-operacion)
+3. [Integración con PostgreSQL mediante Django ORM (psycopg 3)](#sec-3-integracion-postgresql)
+   - 3.1. [Arquitectura de Conexión y Driver psycopg 3](#sec-3-1-arquitectura-psycopg3)
+   - 3.2. [Configuración de Conexión en Variables de Entorno (.env)](#sec-3-2-variables-conexion)
+   - 3.3. [Detección Inteligente y Sondeo de Puerto 5432](#sec-3-3-sondeo-puerto)
+   - 3.4. [Diccionario de Datos y Tablas Relacionales en PostgreSQL](#sec-3-4-diccionario-datos)
+   - 3.5. [Transacciones ACID, Integridad Referencial y Protección SQLi](#sec-3-5-transacciones-sqli)
+   - 3.6. [Administración del Cluster PostgreSQL y Migraciones](#sec-3-6-administracion-cluster)
+4. [Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)](#sec-4-seguridad-imagenes)
+5. [Características ADS (+250 Caracteres) y URL Limpia](#sec-5-caracteristicas-ads)
+6. [Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)](#sec-6-calculo-carrito)
+7. [Pasarela de Pagos: Transbank Webpay Plus Oficial](#sec-7-pasarela-transbank)
+8. [Taxonomía de Categorías del E-Commerce y Categoría "Otros"](#sec-8-taxonomia-categorias)
+9. [Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)](#sec-9-prevencion-xss)
+   - 9.1. [Definición y Clasificación de Amenazas XSS](#sec-9-1-definicion-xss)
+   - 9.2. [Estándar y Recomendaciones Oficiales OWASP](#sec-9-2-estandar-owasp)
+   - 9.3. [Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)](#sec-9-3-restriccion-caracteres)
+   - 9.4. [Defensas en Frontend (Vue 3 Anti-XSS Engine)](#sec-9-4-defensas-frontend)
+   - 9.5. [Defensas en Backend (Django REST Framework y ORM)](#sec-9-5-defensas-backend)
+   - 9.6. [Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)](#sec-9-6-cabeceras-seguridad)
+   - 9.7. [Matriz de Vectores de Ataque XSS vs Mitigaciones](#sec-9-7-matriz-mitigaciones)
+10. [Gestión de Secretos (.env / ONV) y Blindaje ISO 27001](#sec-10-gestion-secretos)
+11. [Guía de Pruebas Automatizadas y Operación](#sec-11-pruebas-operacion)
 
 ---
 
@@ -32,7 +39,7 @@
 | Capa | Tecnología / Componente | Versión | Propósito Arquitectónico |
 | :--- | :--- | :--- | :--- |
 | **Backend API** | Python + Django + Django REST Framework | 3.14 / 6.1 / 3.16 | API REST modular, autenticación JWT, validación de negocio y ORM seguro |
-| **Base de Datos** | PostgreSQL (vía ORM `psycopg 3` con fallback local SQLite) | 16+ / 3.2 | Persistencia transaccional ACID, consultas parametrizadas contra SQLi |
+| **Base de Datos** | PostgreSQL (vía ORM `psycopg 3` en puerto 5432) | 16.8 / 3.2 | Persistencia transaccional ACID, esquemas relacionales, protección SQLi |
 | **Frontend SPA** | Vue 3 + Vite + Tailwind CSS + Pinia | 3.5 / 8.3 / 4.2 | Interfaz reactiva desacoplada, componentizada, estilo MercadoLibre |
 | **Motor Gráfico** | Pillow (Python Imaging Library) | 12.1 | Validación de magic bytes, normalización a lienzo 900x600 y compresión $\le$ 1 MB |
 | **Pasarela de Pagos** | Transbank SDK | 6.1 | Transbank Webpay Plus oficial (init y commit de tarjetas de débito/crédito) |
@@ -112,8 +119,132 @@ classDiagram
 
 ---
 
-<a id="sec-3-seguridad-imagenes"></a>
-## 📸 3. Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)
+<a id="sec-3-integracion-postgresql"></a>
+## 🐘 3. Integración con PostgreSQL mediante Django ORM (psycopg 3)
+
+<a id="sec-3-1-arquitectura-psycopg3"></a>
+### 3.1. Arquitectura de Conexión y Driver `psycopg 3`
+La plataforma utiliza el motor relacional **PostgreSQL 16.8** operando en el puerto TCP `5432`. La conexión entre Django y PostgreSQL se realiza a través de **`psycopg` (versión 3)**, el adaptador nativo moderno de PostgreSQL para Python, especificado como `django.db.backends.postgresql`.
+
+Ventajas de `psycopg 3` aplicadas en el proyecto:
+- **Binarios C nativos (`psycopg-c` / `psycopg-binary`):** Máxima velocidad en serialización y deserialización de tipos de datos complejos (UUID, JSONB, Timestamps con zona horaria).
+- **Mapeo Tipado de UUIDs:** Todos los identificadores primarios del sistema utilizan `uuid.uuid4()` mapeados de forma nativa al tipo de dato `uuid` de PostgreSQL (almacenamiento en 16 bytes en lugar de texto plano), optimizando índices B-Tree.
+- **Preparación de Sentencias del Lado del Servidor:** Reduce el tiempo de análisis de consultas repetitivas (como la búsqueda de productos y la autenticación JWT).
+
+---
+
+<a id="sec-3-2-variables-conexion"></a>
+### 3.2. Configuración de Conexión en Variables de Entorno (`.env`)
+En cumplimiento de la norma ISO 27001 (A.8.9 Gestión de la configuración), ninguna credencial está cableada en `settings.py`. El archivo `.env` define los parámetros de conexión:
+
+```env
+DB_ENGINE=django.db.backends.postgresql
+DB_NAME=inacap_ecommerce
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE=True
+```
+
+---
+
+<a id="sec-3-3-sondeo-puerto"></a>
+### 3.3. Detección Inteligente y Sondeo de Puerto 5432
+En [`backend/config/settings.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/config/settings.py), el sistema incorpora un mecanismo de inspección de red mediante sockets (`check_postgres_connection`):
+
+```python
+def check_postgres_connection(host, port):
+    """Sondea activamente si el puerto de PostgreSQL está aceptando conexiones TCP."""
+    try:
+        with socket.create_connection((host, int(port)), timeout=1.0):
+            return True
+    except (OSError, ValueError):
+        return False
+```
+
+1. **Si PostgreSQL está activo en `127.0.0.1:5432`:** Django configura inmediatamente el diccionario `DATABASES['default']` con el motor PostgreSQL (`psycopg 3`).
+2. **Si el servicio no está disponible:** Activa de forma transparente el fallback a SQLite local, garantizando que el entorno no colapse durante despliegues iniciales o mantenimiento. En cuanto PostgreSQL se inicia, Django se enlaza automáticamente a él.
+
+---
+
+<a id="sec-3-4-diccionario-datos"></a>
+### 3.4. Diccionario de Datos y Tablas Relacionales en PostgreSQL
+El ORM de Django gestiona un total de **18 tablas relacionales** en el esquema `public` de PostgreSQL:
+
+```text
+Esquema |                  Nombre                  | Tipo  | Dueño
+---------+------------------------------------------+-------+----------
+ public  | accounts_persona                         | tabla | postgres
+ public  | accounts_rol                             | tabla | postgres
+ public  | accounts_usercredential                  | tabla | postgres
+ public  | accounts_usercredential_groups           | tabla | postgres
+ public  | accounts_usercredential_user_permissions | tabla | postgres
+ public  | accounts_userprofile                     | tabla | postgres
+ public  | accounts_userrol                         | tabla | postgres
+ public  | auth_group                               | tabla | postgres
+ public  | auth_group_permissions                   | tabla | postgres
+ public  | auth_permission                          | tabla | postgres
+ public  | django_admin_log                         | tabla | postgres
+ public  | django_content_type                      | tabla | postgres
+ public  | django_migrations                        | tabla | postgres
+ public  | django_session                           | tabla | postgres
+ public  | payments_order                           | tabla | postgres
+ public  | payments_orderitem                       | tabla | postgres
+ public  | products_category                        | tabla | postgres
+ public  | products_product                         | tabla | postgres
+```
+
+#### Descripción de Tablas Principales del Dominio:
+- **`accounts_usercredential`:** Claves primarias UUID, correo electrónico único (`VARCHAR 255`), hash PBKDF2 SHA256 de la contraseña, marcas de tiempo de creación y último login.
+- **`accounts_userprofile`:** Perfil intermedio vinculado 1:1 con `accounts_usercredential` mediante clave foránea con borrado en cascada. Contiene `public_alias`, `reputation_score` (`FLOAT`), `is_verified_seller` (`BOOLEAN`) y `total_sales`.
+- **`accounts_persona`:** Datos personales civiles protegidos (RUT, nombres, apellidos, teléfono y dirección). Vinculada 1:1 con `accounts_userprofile`.
+- **`accounts_rol` y `accounts_userrol`:** Catálogo de roles del sistema (`SELLER`, `BUYER`, `ADMIN`) y tabla de asociación N:M con campo `activo` (`BOOLEAN`) y marca de tiempo de auditoría.
+- **`products_category`:** Categorías del catálogo con `name`, `slug` único e `icon_name`.
+- **`products_product`:** Catálogo de productos. Claves foráneas hacia `products_category` y `accounts_userprofile` (el perfil del vendedor). Almacena `title`, `slug` único, `price` (`NUMERIC(12,2)`), `caracteristicas_ads` (`TEXT` con validador de longitud mínima), ruta relativa de imagen en disco y flags de despacho express.
+- **`payments_order` y `payments_orderitem`:** Registro inmutable de transacciones. Almacena el número de orden de compra Transbank (`buy_order`), sesión (`session_id`), token de transacción, monto total (`NUMERIC(12,2)`), código de autorización bancaria y estado (`INITIALIZED`, `COMPLETED`, `FAILED`, `REFUNDED`).
+
+---
+
+<a id="sec-3-5-transacciones-sqli"></a>
+### 3.5. Transacciones ACID, Integridad Referencial y Protección SQLi
+1. **Protección Absoluta contra SQL Injection (SQLi):**
+   - En toda la plataforma **no existe ninguna concatenación de cadenas en sentencias SQL**. Todas las lecturas, inserciones y actualizaciones se ejecutan a través de la API de QuerySets del ORM de Django (`Product.objects.filter(...)`, `select_related(...)`).
+   - El driver `psycopg 3` envía las consultas como sentencias parametrizadas, de modo que cualquier payload enviado por un atacante es tratado estrictamente como valor literal de columna y nunca como comando ejecutable.
+2. **Atomicidad Transaccional (ACID):**
+   - El proceso de confirmación de pago de Transbank (`commit_transaction`) y descuento de stock se ejecuta bajo el decorador `@transaction.atomic`.
+   - Si la confirmación de Transbank o el guardado de los ítems de la orden falla, la base de datos PostgreSQL realiza un `ROLLBACK` automático, impidiendo que el stock quede en estado inconsistente.
+
+---
+
+<a id="sec-3-6-administracion-cluster"></a>
+### 3.6. Administración del Cluster PostgreSQL y Migraciones
+
+#### Comandos de Inicio y Parada del Servidor:
+```powershell
+# Iniciar el motor PostgreSQL en segundo plano
+& "C:\Users\Rober\pgsql\pgsql\bin\postgres.exe" -D "C:\Users\Rober\pgsql\data"
+
+# Comprobar estado con pg_ctl
+& "C:\Users\Rober\pgsql\pgsql\bin\pg_ctl.exe" -D "C:\Users\Rober\pgsql\data" status
+
+# Detener el servidor ordenadamente
+& "C:\Users\Rober\pgsql\pgsql\bin\pg_ctl.exe" -D "C:\Users\Rober\pgsql\data" stop
+```
+
+#### Aplicación de Migraciones y Poblado en PostgreSQL:
+```powershell
+# Ejecutar las 21 migraciones sobre PostgreSQL
+& "backend\.venv\Scripts\python.exe" "backend\manage.py" migrate
+
+# Sembrar datos de demostración en PostgreSQL
+& "backend\.venv\Scripts\python.exe" "backend\manage.py" seed_ecommerce
+```
+
+---
+
+<a id="sec-4-seguridad-imagenes"></a>
+## 📸 4. Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)
 
 Conforme a la instrucción:
 > *"La seguridad esta en la extensión de la imagen además de la conversión de la imagen, no importa la imagen que se suba, que la pagina ponga la imagen en resolución 900X600 y pese máximo 1 mb"*.
@@ -133,8 +264,8 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
 
 ---
 
-<a id="sec-4-caracteristicas-ads"></a>
-## 📝 4. Características ADS (+250 Caracteres) y URL Limpia
+<a id="sec-5-caracteristicas-ads"></a>
+## 📝 5. Características ADS (+250 Caracteres) y URL Limpia
 
 ### Regla de Negocio ADS:
 - **Validación Estricta:** El campo `caracteristicas_ads` tiene un validador obligatorio `MinLengthValidator(251)` a nivel de base de datos y serializador DRF. No se permite crear ningún producto con 250 o menos caracteres.
@@ -146,8 +277,8 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
 
 ---
 
-<a id="sec-5-calculo-carrito"></a>
-## 🛡️ 5. Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)
+<a id="sec-6-calculo-carrito"></a>
+## 🛡️ 6. Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)
 
 > **Regla de Seguridad Fundamental:** *"Los procesos donde tenga información delicada no deben estar generadas, calculadas o analizadas por JS, problema de seguridad"*.
 
@@ -172,8 +303,8 @@ Si una tienda calcula el total a pagar en JavaScript en el navegador del cliente
 
 ---
 
-<a id="sec-6-pasarela-transbank"></a>
-## 💳 6. Pasarela de Pagos: Transbank Webpay Plus Oficial
+<a id="sec-7-pasarela-transbank"></a>
+## 💳 7. Pasarela de Pagos: Transbank Webpay Plus Oficial
 
 La plataforma integra la pasarela Webpay Plus mediante el SDK oficial `transbank-sdk` (v6.1).
 
@@ -209,8 +340,8 @@ sequenceDiagram
 
 ---
 
-<a id="sec-7-taxonomia-categorias"></a>
-## 🏷️ 7. Taxonomía de Categorías del E-Commerce y Categoría "Otros"
+<a id="sec-8-taxonomia-categorias"></a>
+## 🏷️ 8. Taxonomía de Categorías del E-Commerce y Categoría "Otros"
 
 El sistema cuenta con un catálogo representativo de las categorías típicas del comercio electrónico chileno, incluyendo de forma obligatoria la categoría **"Otros"**:
 
@@ -235,11 +366,11 @@ Todos los productos asociados a la categoría "Otros" pueden filtrarse inmediata
 
 ---
 
-<a id="sec-8-prevencion-xss"></a>
-## 🛡️ 8. Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)
+<a id="sec-9-prevencion-xss"></a>
+## 🛡️ 9. Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)
 
-<a id="sec-8-1-definicion-xss"></a>
-### 8.1. Definición y Clasificación de Amenazas XSS
+<a id="sec-9-1-definicion-xss"></a>
+### 9.1. Definición y Clasificación de Amenazas XSS
 El **Cross-Site Scripting (XSS)** es una vulnerabilidad de inyección que ocurre cuando datos suministrados por un usuario o atacante son incluidos en una página web sin la adecuada validación o codificación, permitiendo la ejecución arbitraria de scripts JavaScript en el navegador de la víctima.
 
 Se clasifica en tres tipos principales:
@@ -249,8 +380,8 @@ Se clasifica en tres tipos principales:
 
 ---
 
-<a id="sec-8-2-estandar-owasp"></a>
-### 8.2. Estándar y Recomendaciones Oficiales OWASP
+<a id="sec-9-2-estandar-owasp"></a>
+### 9.2. Estándar y Recomendaciones Oficiales OWASP
 Conforme a la **OWASP Cross-Site Scripting Prevention Cheat Sheet**, una estrategia de seguridad moderna contra XSS no debe depender de una única técnica frágil, sino de una **estrategia de Defensa en Profundidad (Defense-in-Depth)**:
 
 1. **Validación por Listas Blancas (Allowlists):** Definir de manera positiva qué caracteres están permitidos, en lugar de intentar predecir cada variante de ataque con listas negras.
@@ -260,8 +391,8 @@ Conforme a la **OWASP Cross-Site Scripting Prevention Cheat Sheet**, una estrate
 
 ---
 
-<a id="sec-8-3-restriccion-caracteres"></a>
-### 8.3. Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)
+<a id="sec-9-3-restriccion-caracteres"></a>
+### 9.3. Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)
 Por solicitud de diseño seguro, los inputs de búsqueda, campos de formulario de productos y apodos de usuario prohíben expresamente los caracteres especiales frecuentemente utilizados para construcciones de inyección:
 
 $$\text{Caracteres Prohibidos: } [\quad ]\quad \{\quad \}\quad *\quad <\quad >\quad \backslash\quad ;\quad \hat{}\quad \$\quad \sim\quad |\quad `$$
@@ -273,8 +404,8 @@ $$\text{Caracteres Prohibidos: } [\quad ]\quad \{\quad \}\quad *\quad <\quad >\q
 
 ---
 
-<a id="sec-8-4-defensas-frontend"></a>
-### 8.4. Defensas en Frontend (Vue 3 Anti-XSS Engine)
+<a id="sec-9-4-defensas-frontend"></a>
+### 9.4. Defensas en Frontend (Vue 3 Anti-XSS Engine)
 Ubicación del módulo: [`frontend/src/utils/security.js`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/utils/security.js).
 
 1. **Bloqueo a Nivel de Teclado (`@keypress`):**
@@ -286,8 +417,8 @@ Ubicación del módulo: [`frontend/src/utils/security.js`](file:///C:/Users/Robe
 
 ---
 
-<a id="sec-8-5-defensas-backend"></a>
-### 8.5. Defensas en Backend (Django REST Framework y ORM)
+<a id="sec-9-5-defensas-backend"></a>
+### 9.5. Defensas en Backend (Django REST Framework y ORM)
 El principio de seguridad establece que **el cliente nunca debe ser la única línea de defensa**. Django aplica validación estricta en el lado del servidor:
 
 1. **Sanitización de Consultas de Búsqueda (`ProductListCreateView`):**
@@ -308,8 +439,8 @@ El principio de seguridad establece que **el cliente nunca debe ser la única l�
 
 ---
 
-<a id="sec-8-6-cabeceras-seguridad"></a>
-### 8.6. Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)
+<a id="sec-9-6-cabeceras-seguridad"></a>
+### 9.6. Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)
 Ubicación del middleware: [`backend/apps/security/middleware.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/security/middleware.py).
 
 Cada respuesta HTTP del servidor incluye las siguientes directivas de seguridad para el navegador:
@@ -330,8 +461,8 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 
 ---
 
-<a id="sec-8-7-matriz-mitigaciones"></a>
-### 8.7. Matriz de Vectores de Ataque XSS vs Mitigaciones
+<a id="sec-9-7-matriz-mitigaciones"></a>
+### 9.7. Matriz de Vectores de Ataque XSS vs Mitigaciones
 
 | Vector de Ataque Potencial | Ejemplo de Payload | Capa de Protección | Resultado / Mitigación |
 | :--- | :--- | :--- | :--- |
@@ -344,8 +475,8 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 
 ---
 
-<a id="sec-9-gestion-secretos"></a>
-## 🔒 9. Gestión de Secretos (.env / ONV) y Blindaje ISO 27001
+<a id="sec-10-gestion-secretos"></a>
+## 🔒 10. Gestión de Secretos (.env / ONV) y Blindaje ISO 27001
 
 Conforme a la instrucción:
 > *"Los datos de configuraciones no en el Setting, todo lo que tenga seguridad en ONV (.env)"*.
@@ -371,15 +502,26 @@ El archivo `.env` se encuentra estrictamente ignorado en el control de versiones
 
 ---
 
-<a id="sec-10-pruebas-operacion"></a>
-## 🧪 10. Guía de Pruebas Automatizadas y Operación
+<a id="sec-11-pruebas-operacion"></a>
+## 🧪 11. Guía de Pruebas Automatizadas y Operación
 
 ### Ejecución de Pruebas Unitarias del Backend:
 ```powershell
 & "backend\.venv\Scripts\python.exe" "backend\manage.py" test apps.accounts apps.products apps.payments
 ```
 
-**Resultado de las Pruebas (8/8 OK):**
+**Resultado de las Pruebas (8/8 OK sobre PostgreSQL):**
+```text
+Creating test database for alias 'default'...
+........
+----------------------------------------------------------------------
+Ran 8 tests in 5.816s
+
+OK
+Destroying test database for alias 'default'...
+[DATABASE] Connected to PostgreSQL on 127.0.0.1:5432/inacap_ecommerce
+```
+
 - `test_user_profile_between_user_and_persona`: Valida el desacoplamiento `User` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona`.
 - `test_seller_role_assignment`: Valida el modelo `ROL -> UserRol`.
 - `test_caracteristicas_ads_min_length_validation`: Valida el rechazo de productos con $\le 250$ caracteres ADS.
@@ -396,6 +538,7 @@ Set-Location "frontend"; npm run build
 - Tiempo de compilación: $\approx 650$ ms sin errores ni advertencias de sintaxis.
 
 ### Puertos de Servicio en Ejecución Local:
+- **Base de Datos Relacional (PostgreSQL 16.8):** `127.0.0.1:5432`
 - **Frontend SPA (Vue 3 + Vite):** [http://localhost:5173](http://localhost:5173)
-- **Backend API (Django):** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Backend API (Django REST Framework):** [http://127.0.0.1:8000](http://127.0.0.1:8000)
 - **Documentación de Transbank:** [GUIA_TRANSBANK_WEBPAY.md](file:///C:/Users/Rober/inacap%20e-commerce/GUIA_TRANSBANK_WEBPAY.md)
