@@ -299,7 +299,7 @@ async function handleSubmit() {
               class="w-full p-2.5 rounded-md border focus:outline-none focus:ring-2 font-mono text-[11px]"
             ></textarea>
             <p v-if="!isAdsValid" class="text-[10px] text-red-600 font-semibold mt-0.5">
-              ⚠️ Faltan {{ remainingAdsChars }} caracteres para alcanzar el mínimo requerido de 250 caracteres.
+              Faltan {{ remainingAdsChars }} caracteres para alcanzar el mínimo requerido de 250 caracteres.
             </p>
             <p v-else class="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
               <CheckCircle2 class="w-3 h-3" />

@@ -2,9 +2,7 @@
 
 Esta guía detalla paso a paso cómo programar, configurar y utilizar **Transbank Webpay Plus** en un entorno de comercio electrónico moderno bajo los estándares de desarrollo seguro y **ISO/IEC 27001**.
 
----
-
-## 📌 1. ¿Cómo Funciona el Flujo de Pago de Transbank Webpay Plus?
+## 1. ¿Cómo Funciona el Flujo de Pago de Transbank Webpay Plus?
 
 El flujo consta de **4 etapas fundamentales**:
 
@@ -28,9 +26,7 @@ sequenceDiagram
     Back-->>Cliente: 11. Muestra voucher de aprobación al cliente
 ```
 
----
-
-## ⚙️ 2. Instalación del SDK Oficial
+## 2. Instalación del SDK Oficial
 
 En el entorno virtual de Django (`.venv`), se instala el SDK oficial de Transbank para Python:
 
@@ -43,9 +39,7 @@ En `backend/requirements.txt`:
 transbank-sdk>=6.1.0
 ```
 
----
-
-## 🔐 3. Configuración en Variables de Entorno (`.env`)
+## 3. Configuración en Variables de Entorno (`.env`)
 
 Por seguridad (y conforme a las directrices de configuración segura), **nunca** se colocan las credenciales en `settings.py`. Se definen en el archivo `.env`:
 
@@ -63,9 +57,7 @@ TRANSBANK_API_KEY = os.getenv('TRANSBANK_API_KEY', '579B532A7440BB061E185D825227
 TRANSBANK_ENVIRONMENT = os.getenv('TRANSBANK_ENVIRONMENT', 'TEST')
 ```
 
----
-
-## 💻 4. Paso a Paso en Código (Backend Django)
+## 4. Paso a Paso en Código (Backend Django)
 
 ### Paso 1: Cálculo Seguro del Monto (Anti-Manipulación JS)
 ```python
@@ -102,7 +94,7 @@ response = tx.create(buy_order, session_id, amount, return_url)
 
 # Retorna:
 # response.token -> Token de sesión único de Webpay
-# response.url   -> URL oficial de pago (https://webpay3gint.transbank.cl/...)
+# response.url -> URL oficial de pago (https://webpay3gint.transbank.cl/...)
 ```
 
 ### Paso 3: Confirmar la Transacción (`commit_transaction`)
@@ -127,9 +119,7 @@ else:
     order.save()
 ```
 
----
-
-## 💳 5. Tarjetas de Prueba Oficiales de Transbank (Ambiente de Integración)
+## 5. Tarjetas de Prueba Oficiales de Transbank (Ambiente de Integración)
 
 Para simular compras aprobadas en el ambiente de prueba oficial de Transbank:
 
@@ -139,9 +129,7 @@ Para simular compras aprobadas en el ambiente de prueba oficial de Transbank:
 | **Crédito Visa** | `4000 0000 0000 0001` | Cualquier fecha futura | `123` | N/A |
 | **Crédito Mastercard** | `5000 0000 0000 0001` | Cualquier fecha futura | `123` | N/A |
 
----
-
-## 🛡️ 6. Reglas de Seguridad Críticas Exigidas
+## 6. Reglas de Seguridad Críticas Exigidas
 
 1. **Nunca calcular totales en JavaScript:** El navegador es un entorno inseguro que el usuario puede manipular con las herramientas de desarrollador (DevTools). El servidor Django debe consultar los precios en PostgreSQL y calcular el monto final de forma inmutable.
 2. **Uso de `.env`:** El código de comercio y API Key deben permanecer fuera del control de versiones.

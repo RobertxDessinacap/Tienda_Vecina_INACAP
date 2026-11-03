@@ -1,20 +1,16 @@
-# Inacap E-Commerce 🛒🇨🇱
+# Inacap E-Commerce
 
 Plataforma de comercio electrónico moderna, segura y de alto rendimiento diseñada con la estética limpia y amigable de MercadoLibre / Mercado Pago. Desarrollada con **Django** (PostgreSQL ORM) en el Backend y **Vue 3** (Vite + Tailwind CSS + Pinia) en el Frontend.
 
 El proyecto incorpora una arquitectura de desacoplamiento de usuarios (`Userdjango` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona` y `ROL -> UserRol`), procesamiento y blindaje de imágenes a 900x600 ($\le$ 1 MB), validador ADS de más de 250 caracteres, cálculo de carrito 100% en servidor (anti-manipulación JS), pasarela de pagos integrada con **Transbank Webpay Plus**, selector dinámico de ubicación de despacho para Chile, protección de doble capa contra ataques **XSS (Cross-Site Scripting)**, código limpio modular y aislamiento total de secretos en variables de entorno `.env`.
 
----
+## Documentación Técnica
+- [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md): Documento técnico integral indexado (Instalación de frameworks y DB, Diagrama C4, Matriz de Endpoints REST, Clean Code, Arquitectura de identidades, reglas de negocio, blindaje de imágenes, prevención OWASP Anti-XSS y matriz de mitigaciones).
+- [GUIA_TRANSBANK_WEBPAY.md](GUIA_TRANSBANK_WEBPAY.md): Guía paso a paso para programar e integrar la pasarela oficial Webpay Plus de Transbank.
+- [example.env](example.env): Plantilla de configuración comentada exhaustivamente para replicación por IA o desarrolladores.
+- [docker-compose.yml](docker-compose.yml): Orquestación multi-servicio para arranque instantáneo en contenedores (PostgreSQL 16 + Django 6 + Vue 3).
 
-## 📑 Documentación Técnica
-- 📖 [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md): Documento técnico integral indexado (Instalación de frameworks y DB, Diagrama C4, Matriz de Endpoints REST, Clean Code, Arquitectura de identidades, reglas de negocio, blindaje de imágenes, prevención OWASP Anti-XSS y matriz de mitigaciones).
-- 💳 [GUIA_TRANSBANK_WEBPAY.md](GUIA_TRANSBANK_WEBPAY.md): Guía paso a paso para programar e integrar la pasarela oficial Webpay Plus de Transbank.
-- ⚙️ [example.env](example.env): Plantilla de configuración comentada exhaustivamente para replicación por IA o desarrolladores.
-- 🐳 [docker-compose.yml](docker-compose.yml): Orquestación multi-servicio para arranque instantáneo en contenedores (PostgreSQL 16 + Django 6 + Vue 3).
-
----
-
-## 🛠️ 1. Guía de Instalación de Frameworks y Base de Datos
+## 1. Guía de Instalación de Frameworks y Base de Datos
 
 ### A. Base de Datos: PostgreSQL (Versión 14+)
 
@@ -56,8 +52,6 @@ createdb -O postgres inacap_ecommerce
 
 > **Resiliencia Automática:** Si por alguna razón PostgreSQL no está activo al arrancar Django, la variable `DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE=True` conmuta de forma automática y transparente a SQLite local para que el entorno pueda probarse de inmediato sin fallar.
 
----
-
 ### B. Backend: Python & Django Framework
 
 El backend es una API REST desacoplada desarrollada sobre **Django 6** y **Django REST Framework**.
@@ -67,7 +61,7 @@ El backend es una API REST desacoplada desarrollada sobre **Django 6** y **Djang
    ```bash
    cd backend
    python -m venv .venv
-   
+
    # Activar entorno virtual
    # En Windows PowerShell:
    .venv\Scripts\Activate.ps1
@@ -100,8 +94,6 @@ El backend es una API REST desacoplada desarrollada sobre **Django 6** y **Djang
    python manage.py runserver 127.0.0.1:8000
    ```
 
----
-
 ### C. Frontend: Node.js & Vue 3 Framework
 
 El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 3** y empaquetada con **Vite**.
@@ -124,9 +116,7 @@ El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 
    ```
    El frontend abrirá en: **`http://localhost:5173`**.
 
----
-
-## 🧼 2. Principios de Código Limpio (Clean Code) Aplicados
+## 2. Principios de Código Limpio (Clean Code) Aplicados
 
 1. **Arquitectura Modular por Aplicaciones de Dominio (`apps/`):**
    El backend se divide en componentes independientes con una única responsabilidad (SRP):
@@ -141,9 +131,7 @@ El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 
 4. **Principio DRY (Don't Repeat Yourself):**
    - Utilidades centralizadas en `utils/security.js` en frontend y `apps/products/utils.py` en backend.
 
----
-
-## 🔒 3. Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)
+## 3. Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)
 
 | Control / Pilar de Seguridad | Implementación en Inacap E-Commerce | Estándar Cumplido |
 | :--- | :--- | :--- |
@@ -157,7 +145,7 @@ El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 
 | **Cabeceras HTTP de Servidor** | `Content-Security-Policy (CSP)`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`. | ISO 27001 A.8.26 |
 | **Integridad Transaccional** | Transacciones ACID `@transaction.atomic` en pagos Transbank y descuento de stock en PostgreSQL. | Principio ACID |
 
-### 📋 Auditoría de Cumplimiento y Análisis de Brechas (Gap Analysis)
+### Auditoría de Cumplimiento y Análisis de Brechas (Gap Analysis)
 - **¿Por qué cumple la aplicación a nivel de código?** El sistema implementa de forma nativa las mitigaciones de ingeniería de software para los 10 riesgos de **OWASP Top 10:2021** (Anti-SQLi, Anti-XSS, Anti-Tampering, RBAC, Criptografía PBKDF2/JWT) y los controles tecnológicos del **Anexo A de ISO/IEC 27001:2022** (A.5.15, A.8.2, A.8.5, A.8.9, A.8.15, A.8.24, A.8.26, A.8.28).
 - **¿Qué falta para una certificación formal al 100% en producción?** A nivel organizacional y de infraestructura empresarial se requiere:
   1. *Gobernanza ISO 27001:* Política formal del SGSI aprobada por la alta dirección, matriz de riesgos (ISO 27005) y declaración de aplicabilidad (SoA).
@@ -165,11 +153,9 @@ El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 
   3. *Gestión de Claves:* Migrar secretos a un Módulo de Seguridad en Hardware (HSM) o Cloud KMS / Vault.
   4. *Infraestructura en Borde:* WAF de Capa 7 (Cloudflare / AWS WAF), Rate Limiting con cluster Redis y CAPTCHA adaptativo (Turnstile) en login.
   5. *Auditoría de Certificación:* Superar auditorías externas Fase 1 y 2 conducidas por un organismo acreditador internacional (BSI, AENOR, TÜV).
-- 👉 *Consulta el desglose y justificación exhaustiva en:* [DOCUMENTACION_SISTEMA.md (Capítulo 14)](DOCUMENTACION_SISTEMA.md#sec-14-auditoria-cumplimiento).
+- *Consulta el desglose y justificación exhaustiva en:* [DOCUMENTACION_SISTEMA.md (Capítulo 14)](DOCUMENTACION_SISTEMA.md#sec-14-auditoria-cumplimiento).
 
----
-
-## 👥 Cuentas de Acceso de Demostración
+## Cuentas de Acceso de Demostración
 
 El comando `seed_ecommerce` deja precargadas 3 cuentas listas para probar las diferentes rolificaciones:
 
@@ -181,9 +167,7 @@ El comando `seed_ecommerce` deja precargadas 3 cuentas listas para probar las di
 
 > **Acceso Rápido:** Dentro de la ventana de inicio de sesión, puedes hacer clic en los botones de prueba rápida (*"Demo Vendedor"*, *"Demo Comprador"*, *"Demo Admin"*) para autocompletar credenciales al instante.
 
----
-
-## 💳 Pruebas de Pago con Transbank Webpay Plus
+## Pruebas de Pago con Transbank Webpay Plus
 
 Para simular una compra real mediante la pasarela oficial Webpay Plus:
 1. Agrega cualquier producto al carrito de compras.
@@ -194,9 +178,7 @@ Para simular una compra real mediante la pasarela oficial Webpay Plus:
    - **Clave Webpay:** `1213`.
 5. Al autorizarse el pago, el backend descontará el stock automáticamente en la base de datos PostgreSQL y emitirá el voucher oficial imprimible con código de autorización.
 
----
-
-## 🧪 Ejecución de Pruebas Automatizadas
+## Ejecución de Pruebas Automatizadas
 
 El proyecto incluye pruebas unitarias que validan la arquitectura del docente y los estándares de seguridad:
 
@@ -215,9 +197,7 @@ python manage.py test apps.accounts apps.products apps.payments
 7. `test_xss_payload_rejected_in_product_creation`: Detección y bloqueo de scripts y caracteres especiales prohibidos (`[`, `]`, `{`, `}`, `*`, `<`, `>`).
 8. `test_search_endpoint_sanitizes_xss_and_brackets`: Sanitización segura de parámetros de búsqueda sin colapso.
 
----
-
-## 📦 Compilación para Producción (Frontend)
+## Compilación para Producción (Frontend)
 
 Para generar el paquete optimizado de distribución:
 ```bash

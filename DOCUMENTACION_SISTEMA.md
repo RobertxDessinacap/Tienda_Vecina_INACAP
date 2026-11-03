@@ -2,9 +2,7 @@
 
 > **Nota para Sesiones de IA y Desarrolladores:** Este documento técnico está completamente **indexado** con anclas de navegación semántica (`#sec-X`). Utiliza el índice para saltar de inmediato a cualquier sección arquitectónica, reglas de negocio o estándares de seguridad.
 
----
-
-## 📑 Índice de Contenidos
+## Índice de Contenidos
 
 1. [Ficha Técnica del Proyecto y Stack Tecnológico](#sec-1-ficha-tecnica)
    - 1.1. [Stack Tecnológico y Dependencias](#sec-1-1-stack-tecnologico)
@@ -49,10 +47,8 @@
    - 14.3. [Matriz de Cumplimiento de Controles ISO/IEC 27001:2022 Anexo A (Por Qué Cumple)](#sec-14-3-cumplimiento-iso27001)
    - 14.4. [Análisis de Brecha (Gap Analysis): ¿Qué Falta para Cumplirlas en su Totalidad?](#sec-14-4-analisis-brecha)
 
----
-
 <a id="sec-1-ficha-tecnica"></a>
-## 📌 1. Ficha Técnica del Proyecto y Stack Tecnológico
+## 1. Ficha Técnica del Proyecto y Stack Tecnológico
 
 <a id="sec-1-1-stack-tecnologico"></a>
 ### 1.1. Stack Tecnológico y Dependencias
@@ -66,8 +62,6 @@
 | **Pasarela de Pagos** | Transbank SDK | 6.1 | Transbank Webpay Plus oficial (init y commit de tarjetas de débito/crédito) |
 | **Seguridad de Secretos** | `python-dotenv` | 1.2 | Todas las credenciales sensibles aisladas en archivo `.env` |
 | **Seguridad Anti-XSS** | OWASP Top 10 + CSP + Regex Sanitizer | Estándar | Filtro de caracteres prohibidos (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), CSP |
-
----
 
 <a id="sec-1-2-diagrama-c4"></a>
 ### 1.2. Diagrama de Arquitectura Global C4 (Container Level)
@@ -84,7 +78,7 @@ flowchart TB
     subgraph BackendAPI["Backend Seguro (Django 6 REST Framework)"]
         Nginx["Servidor Web / API Gateway\nPuerto: 8000"]
         Middlewares["Capa de Middlewares ISO 27001\n- CorsMiddleware\n- ISO27001SecurityHeaders (CSP, nosniff, DENY)\n- SecurityAuditLoggingMiddleware"]
-        
+
         subgraph Modulos["Aplicaciones de Dominio (SRP)"]
             AppAccounts["apps.accounts\n- UserCredential (Userdjango)\n- UserProfile (Intermedio)\n- Persona (Civil PII)\n- Rol -> UserRol (RBAC)"]
             AppProducts["apps.products\n- Catálogo y Categorías (inc. Otros)\n- Validador ADS (+250 chars)\n- Generador de Slugs Limpios\n- Pillow 900x600 Engine"]
@@ -106,7 +100,7 @@ flowchart TB
     SPA -->|JSON REST + Bearer JWT| Nginx
     Nginx --> Middlewares
     Middlewares --> Modulos
-    
+
     AppAccounts -->|psycopg 3 Driver| Postgres
     AppProducts -->|psycopg 3 Driver| Postgres
     AppProducts -->|Guarda imágenes optimizadas| MediaStorage
@@ -115,8 +109,6 @@ flowchart TB
 
     Middlewares -.->|Detección Socket Port 5432| SQLiteFallback
 ```
-
----
 
 <a id="sec-1-3-matriz-api"></a>
 ### 1.3. Matriz Consolidada de Contratos de la API REST (API Cheat Sheet)
@@ -135,8 +127,6 @@ flowchart TB
 | `POST` | `/api/v1/payments/transbank/commit/` | Pública | Cualquiera | `{"token": "token_ws"}` | `200`, `400`, `404` | Confirma pago con Transbank, descuenta stock en PostgreSQL y emite voucher imprimible |
 | `GET` | `/api/v1/payments/methods/` | Pública | Cualquiera | *None* | `200` | Catálogo del Carrusel de Medios de Pago |
 
----
-
 <a id="sec-1-4-docker-compose"></a>
 ### 1.4. Orquestación de Contenedores con Docker Compose
 
@@ -153,10 +143,8 @@ docker compose logs -f
 docker compose down
 ```
 
----
-
 <a id="sec-2-arquitectura-usuarios"></a>
-## 🏛️ 2. Arquitectura de Usuarios: Userdjango - UserProfile - Persona y Roles
+## 2. Arquitectura de Usuarios: Userdjango - UserProfile - Persona y Roles
 
 Siguiendo el requerimiento explícito del docente:
 > *"Usar Userdjango y el objeto persona, entre el user y la persona debe ser el userprofile y este se puede mover en el sistema. Esto es para clientes y vendedores, estos deben tener roles; ROL -> UserRol"*.
@@ -224,10 +212,8 @@ classDiagram
 3. **`UserProfile`:** **Es el objeto que se mueve a través del sistema**. Desacopla las credenciales privadas de la persona real. Cuando un vendedor publica un producto, el producto se asocia a este `UserProfile`. Cuando un comprador adquiere un producto, la orden se vincula al `UserProfile`.
 4. **`ROL -> UserRol`:** Proporciona control de acceso basado en roles (RBAC). El catálogo `Rol` define privilegios (`SELLER`, `BUYER`, `ADMIN`), y `UserRol` asigna y revoca dichos permisos de forma auditable.
 
----
-
 <a id="sec-3-integracion-postgresql"></a>
-## 🐘 3. Integración con PostgreSQL mediante Django ORM (psycopg 3)
+## 3. Integración con PostgreSQL mediante Django ORM (psycopg 3)
 
 <a id="sec-3-1-arquitectura-psycopg3"></a>
 ### 3.1. Arquitectura de Conexión y Driver `psycopg 3`
@@ -237,8 +223,6 @@ Ventajas de `psycopg 3` aplicadas en el proyecto:
 - **Binarios C nativos (`psycopg-c` / `psycopg-binary`):** Máxima velocidad en serialización y deserialización de tipos de datos complejos (UUID, JSONB, Timestamps con zona horaria).
 - **Mapeo Tipado de UUIDs:** Todos los identificadores primarios del sistema utilizan `uuid.uuid4()` mapeados de forma nativa al tipo de dato `uuid` de PostgreSQL (almacenamiento en 16 bytes en lugar de texto plano), optimizando índices B-Tree.
 - **Preparación de Sentencias del Lado del Servidor:** Reduce el tiempo de análisis de consultas repetitivas (como la búsqueda de productos y la autenticación JWT).
-
----
 
 <a id="sec-3-2-variables-conexion"></a>
 ### 3.2. Configuración de Conexión en Variables de Entorno (`.env`)
@@ -253,8 +237,6 @@ DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE=True
 ```
-
----
 
 <a id="sec-3-3-sondeo-puerto"></a>
 ### 3.3. Detección Inteligente y Sondeo de Puerto 5432
@@ -273,33 +255,31 @@ def check_postgres_connection(host, port):
 1. **Si PostgreSQL está activo en `127.0.0.1:5432`:** Django configura inmediatamente el diccionario `DATABASES['default']` con el motor PostgreSQL (`psycopg 3`).
 2. **Si el servicio no está disponible:** Activa de forma transparente el fallback a SQLite local, garantizando que el entorno no colapse durante despliegues iniciales o mantenimiento. En cuanto PostgreSQL se inicia, Django se enlaza automáticamente a él.
 
----
-
 <a id="sec-3-4-diccionario-datos"></a>
 ### 3.4. Diccionario de Datos y Tablas Relacionales en PostgreSQL
 El ORM de Django gestiona un total de **18 tablas relacionales** en el esquema `public` de PostgreSQL:
 
 ```text
-Esquema |                  Nombre                  | Tipo  | Dueño
----------+------------------------------------------+-------+----------
- public  | accounts_persona                         | tabla | postgres
- public  | accounts_rol                             | tabla | postgres
- public  | accounts_usercredential                  | tabla | postgres
- public  | accounts_usercredential_groups           | tabla | postgres
- public  | accounts_usercredential_user_permissions | tabla | postgres
- public  | accounts_userprofile                     | tabla | postgres
- public  | accounts_userrol                         | tabla | postgres
- public  | auth_group                               | tabla | postgres
- public  | auth_group_permissions                   | tabla | postgres
- public  | auth_permission                          | tabla | postgres
- public  | django_admin_log                         | tabla | postgres
- public  | django_content_type                      | tabla | postgres
- public  | django_migrations                        | tabla | postgres
- public  | django_session                           | tabla | postgres
- public  | payments_order                           | tabla | postgres
- public  | payments_orderitem                       | tabla | postgres
- public  | products_category                        | tabla | postgres
- public  | products_product                         | tabla | postgres
+Esquema | Nombre | Tipo | Dueño
++++
+ public | accounts_persona | tabla | postgres
+ public | accounts_rol | tabla | postgres
+ public | accounts_usercredential | tabla | postgres
+ public | accounts_usercredential_groups | tabla | postgres
+ public | accounts_usercredential_user_permissions | tabla | postgres
+ public | accounts_userprofile | tabla | postgres
+ public | accounts_userrol | tabla | postgres
+ public | auth_group | tabla | postgres
+ public | auth_group_permissions | tabla | postgres
+ public | auth_permission | tabla | postgres
+ public | django_admin_log | tabla | postgres
+ public | django_content_type | tabla | postgres
+ public | django_migrations | tabla | postgres
+ public | django_session | tabla | postgres
+ public | payments_order | tabla | postgres
+ public | payments_orderitem | tabla | postgres
+ public | products_category | tabla | postgres
+ public | products_product | tabla | postgres
 ```
 
 #### Descripción de Tablas Principales del Dominio:
@@ -311,8 +291,6 @@ Esquema |                  Nombre                  | Tipo  | Dueño
 - **`products_product`:** Catálogo de productos. Claves foráneas hacia `products_category` y `accounts_userprofile` (el perfil del vendedor). Almacena `title`, `slug` único, `price` (`NUMERIC(12,2)`), `caracteristicas_ads` (`TEXT` con validador de longitud mínima), ruta relativa de imagen en disco y flags de despacho express.
 - **`payments_order` y `payments_orderitem`:** Registro inmutable de transacciones. Almacena el número de orden de compra Transbank (`buy_order`), sesión (`session_id`), token de transacción, monto total (`NUMERIC(12,2)`), código de autorización bancaria y estado (`INITIALIZED`, `COMPLETED`, `FAILED`, `REFUNDED`).
 
----
-
 <a id="sec-3-5-transacciones-sqli"></a>
 ### 3.5. Transacciones ACID, Integridad Referencial y Protección SQLi
 1. **Protección Absoluta contra SQL Injection (SQLi):**
@@ -321,8 +299,6 @@ Esquema |                  Nombre                  | Tipo  | Dueño
 2. **Atomicidad Transaccional (ACID):**
    - El proceso de confirmación de pago de Transbank (`commit_transaction`) y descuento de stock se ejecuta bajo el decorador `@transaction.atomic`.
    - Si la confirmación de Transbank o el guardado de los ítems de la orden falla, la base de datos PostgreSQL realiza un `ROLLBACK` automático, impidiendo que el stock quede en estado inconsistente.
-
----
 
 <a id="sec-3-6-administracion-cluster"></a>
 ### 3.6. Administración del Cluster PostgreSQL y Migraciones
@@ -348,10 +324,8 @@ Esquema |                  Nombre                  | Tipo  | Dueño
 & "backend\.venv\Scripts\python.exe" "backend\manage.py" seed_ecommerce
 ```
 
----
-
 <a id="sec-4-seguridad-imagenes"></a>
-## 📸 4. Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)
+## 4. Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)
 
 Conforme a la instrucción:
 > *"La seguridad esta en la extensión de la imagen además de la conversión de la imagen, no importa la imagen que se suba, que la pagina ponga la imagen en resolución 900X600 y pese máximo 1 mb"*.
@@ -375,10 +349,8 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
 - **Vulnerabilidad:** Un atacante puede crear un archivo de imagen de unos pocos kilobytes comprimidos que, al expandirse en memoria RAM, requiera gigabytes de almacenamiento (por ejemplo, una imagen de $50.000 \times 50.000$ píxeles), provocando un colapso por denegación de servicio (DoS / Out-of-Memory).
 - **Mitigación en Inacap E-Commerce:** En [`backend/apps/products/utils.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/products/utils.py) se define el umbral de seguridad estricto `Image.MAX_IMAGE_PIXELS = 10_000_000`. Pillow rechaza de inmediato con una excepción `DecompressionBombError` cualquier archivo que exceda 10 megapíxeles antes de reservar memoria RAM.
 
----
-
 <a id="sec-5-caracteristicas-ads"></a>
-## 📝 5. Características ADS (+250 Caracteres) y URL Limpia
+## 5. Características ADS (+250 Caracteres) y URL Limpia
 
 <a id="sec-5-1-regla-ads"></a>
 ### 5.1. Regla de Negocio ADS:
@@ -395,10 +367,8 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
 - **Principio de Transparencia Comercial:** La Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y las circulares normativas del SERNAC para el comercio electrónico en Chile exigen que el consumidor conozca la identidad comercial de la contraparte que ofrece un producto o servicio antes de celebrar la transacción. Por este motivo, el sistema expone públicamente el `nombre_completo` del vendedor en la ficha del producto (`ProductCleanUrlView.vue`).
 - **Principio de Minimización de Datos (ISO/IEC 27001 A.8.11 & Ley N° 19.628):** Los datos personales sensibles almacenados en la tabla `accounts_persona` (RUT, número de teléfono particular, correo electrónico privado y dirección de residencia física) **no se exponen** jamás en la API pública ni en las vistas del catálogo. Solo el personal de auditoría o los administradores autenticados mediante JWT con rol `ADMIN` pueden consultar estos atributos para fines de facturación o mediación legal.
 
----
-
 <a id="sec-6-calculo-carrito"></a>
-## 🛡️ 6. Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)
+## 6. Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)
 
 > **Regla de Seguridad Fundamental:** *"Los procesos donde tenga información delicada no deben estar generadas, calculadas o analizadas por JS, problema de seguridad"*.
 
@@ -421,10 +391,8 @@ Si una tienda calcula el total a pagar en JavaScript en el navegador del cliente
    - Calcula subtotales, costo de despacho y total general.
    - Los precios devueltos al cliente son de solo lectura y son los mismos que se transferirán a la pasarela Transbank Webpay.
 
----
-
 <a id="sec-7-pasarela-transbank"></a>
-## 💳 7. Pasarela de Pagos: Transbank Webpay Plus Oficial
+## 7. Pasarela de Pagos: Transbank Webpay Plus Oficial
 
 La plataforma integra la pasarela Webpay Plus mediante el SDK oficial `transbank-sdk` (v6.1).
 
@@ -436,7 +404,7 @@ sequenceDiagram
     participant Frontend as Vue 3 (Cliente)
     participant Backend as Django API
     participant TBK as Transbank Webpay Plus
-    
+
     Cliente->>Frontend: Presiona "Pagar con Transbank"
     Frontend->>Backend: POST /api/v1/payments/transbank/init/ (items del carrito)
     Backend->>Backend: Calcula total real en DB y genera Buy Order
@@ -458,10 +426,8 @@ sequenceDiagram
   - Tarjeta Débito de Prueba: `6623` / Clave: `1213`
 - Para detalles de programación paso a paso, consulta: [GUIA_TRANSBANK_WEBPAY.md](file:///C:/Users/Rober/inacap%20e-commerce/GUIA_TRANSBANK_WEBPAY.md).
 
----
-
 <a id="sec-8-taxonomia-categorias"></a>
-## 🏷️ 8. Taxonomía de Categorías del E-Commerce y Categoría "Otros"
+## 8. Taxonomía de Categorías del E-Commerce y Categoría "Otros"
 
 <a id="sec-8-1-catalogo-categorias"></a>
 ### 8.1. Catálogo Oficial de 14 Categorías
@@ -495,10 +461,8 @@ Todos los productos asociados a la categoría "Otros" pueden filtrarse inmediata
 - **Protección Anti-XSS en el Selector:** El campo de búsqueda de comunas está vinculado al motor `blockDangerousCharsOnKeypress` y `sanitizeEventInput`, evitando que parámetros territoriales contengan secuencias de escape o caracteres especiales prohibidos.
 - **Integración con Carrito:** La comuna seleccionada se almacena en `localStorage` de forma reactiva y se despliega en el encabezado global (`MercadoHeader.vue`), calculando las etiquetas de "Despacho Express" en menos de 24 horas para la zona correspondiente.
 
----
-
 <a id="sec-9-prevencion-xss"></a>
-## 🛡️ 9. Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)
+## 9. Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)
 
 <a id="sec-9-1-definicion-xss"></a>
 ### 9.1. Definición y Clasificación de Amenazas XSS
@@ -509,8 +473,6 @@ Se clasifica en tres tipos principales:
 2. **XSS Almacenado (Stored o Persistente):** El atacante sube código malicioso en campos de base de datos (título del producto, descripción, comentarios o apodo de usuario), ejecutándose cada vez que cualquier visitante visualiza ese producto.
 3. **XSS Basado en DOM (DOM-based):** La vulnerabilidad reside exclusivamente en el código JavaScript del cliente, donde datos inseguros son pasados a "fregaderos" peligrosos como `innerHTML`, `eval()` o `v-html`.
 
----
-
 <a id="sec-9-2-estandar-owasp"></a>
 ### 9.2. Estándar y Recomendaciones Oficiales OWASP
 Conforme a la **OWASP Cross-Site Scripting Prevention Cheat Sheet**, una estrategia de seguridad moderna contra XSS no debe depender de una única técnica frágil, sino de una **estrategia de Defensa en Profundidad (Defense-in-Depth)**:
@@ -520,20 +482,16 @@ Conforme a la **OWASP Cross-Site Scripting Prevention Cheat Sheet**, una estrate
 3. **Restricción de Renderizado HTML en Frameworks:** Usar el motor de plantillas para escapar datos automáticamente y prohibir el uso de inyecciones directas de HTML sin sanitizar (`v-html`).
 4. **Barrera de Cabeceras HTTP:** Implementar cabeceras de seguridad como `Content-Security-Policy` (CSP) para bloquear scripts no autorizados incluso si un vector de inyección llegara a ocurrir.
 
----
-
 <a id="sec-9-3-restriccion-caracteres"></a>
 ### 9.3. Restricción de Caracteres Peligrosos en Inputs (`[ } * < > \ ;` etc.)
 Por solicitud de diseño seguro, los inputs de búsqueda, campos de formulario de productos y apodos de usuario prohíben expresamente los caracteres especiales frecuentemente utilizados para construcciones de inyección:
 
 $$\text{Caracteres Prohibidos: } [\quad ]\quad \{\quad \}\quad *\quad <\quad >\quad \backslash\quad ;\quad \hat{}\quad \$\quad \sim\quad |\quad `$$
 
-- **¿Por qué bloquear `[`, `]`, `{`, `}`?**  
+- **¿Por qué bloquear `[`, `]`, `{`, `}`?**
   Previenen inyecciones de plantillas del lado del cliente (Client-Side Template Injection - CSTI) y manipulación de expresiones de interpolación o desestructuración JSON maliciosa.
-- **¿Por qué bloquear `*`, `\`, `;`, `<` y `>`?**  
+- **¿Por qué bloquear `*`, `\`, `;`, `<` y `>`?**
   Son delimitadores fundamentales en sintaxis de etiquetas HTML (`<script>`), sentencias de terminación de comandos en JavaScript (`;`) y secuencias de escape (`\x3c`).
-
----
 
 <a id="sec-9-4-defensas-frontend"></a>
 ### 9.4. Defensas en Frontend (Vue 3 Anti-XSS Engine)
@@ -545,8 +503,6 @@ Ubicación del módulo: [`frontend/src/utils/security.js`](file:///C:/Users/Robe
    Si un atacante copia un payload malicioso y lo pega mediante el portapapeles, `sanitizeEventInput(event)` o `sanitizeInput(value)` elimina de forma instantánea todos los caracteres prohibidos y secuencias como `javascript:`, `<script>` o manejadores de eventos `onerror=`.
 3. **Interpolación Segura Nativa en Vue:**
    Todos los componentes utilizan interpolación con dobles llaves `{{ product.title }}`. Vue convierte automáticamente caracteres HTML en entidades seguras (`&lt;`, `&gt;`, `&amp;`), neutralizando el DOM XSS. No se utiliza `v-html` con datos de usuarios en toda la plataforma.
-
----
 
 <a id="sec-9-5-defensas-backend"></a>
 ### 9.5. Defensas en Backend (Django REST Framework y ORM)
@@ -568,8 +524,6 @@ El principio de seguridad establece que **el cliente nunca debe ser la única l�
 3. **Validación en Registro de Usuarios (`UserRegistrationSerializer`):**
    El alias público y nombre completo del usuario son validados para asegurar que no contengan caracteres especiales prohibidos ni scripts maliciosos.
 
----
-
 <a id="sec-9-6-cabeceras-seguridad"></a>
 ### 9.6. Cabeceras HTTP de Seguridad (CSP, nosniff, XSS-Protection)
 Ubicación del middleware: [`backend/apps/security/middleware.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/security/middleware.py).
@@ -590,8 +544,6 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 - **`X-Frame-Options: DENY`:** Protege contra Clickjacking al impedir que la aplicación sea embebida en un `<iframe>` de un sitio externo.
 - **`X-XSS-Protection: 1; mode=block`:** Activa el filtro reflexivo de navegadores heredados, bloqueando la página completa si se detecta un ataque XSS.
 
----
-
 <a id="sec-9-7-matriz-mitigaciones"></a>
 ### 9.7. Matriz de Vectores de Ataque XSS vs Mitigaciones
 
@@ -604,10 +556,8 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 | **Inyección en Nombre de Usuario** | `user_admin<script>` | `validate_custom_alias` | Fallo de validación en registro; solo se admiten caracteres alfanuméricos seguros |
 | **Inyección de Scripts Externos** | `<script src="http://evil.com/hack.js">` | `Content-Security-Policy (CSP)` | El navegador bloquea la carga del recurso externo por violación de política CSP |
 
----
-
 <a id="sec-10-gestion-secretos"></a>
-## 🔒 10. Gestión de Secretos (.env / ONV), Plantilla `example.env` y Replicación para IA
+## 10. Gestión de Secretos (.env / ONV), Plantilla `example.env` y Replicación para IA
 
 Conforme a la instrucción:
 > *"Los datos de configuraciones no en el Setting, todo lo que tenga seguridad en ONV (.env)"*.
@@ -629,9 +579,7 @@ Para garantizar que cualquier otra sesión de Inteligencia Artificial o nuevo de
 
 ### Estructura Comentada de `example.env`:
 ```env
-# ==============================================================================
 # INACAP E-COMMERCE - PLANTILLA example.env
-# ==============================================================================
 
 # 1. Núcleo Django
 DEBUG=True
@@ -670,10 +618,8 @@ TRANSBANK_ENVIRONMENT=TEST
 
 El archivo `.env` se encuentra estrictamente ignorado en el control de versiones a través de `.gitignore`, evitando filtraciones accidentales al repositorio Git.
 
----
-
 <a id="sec-11-pruebas-operacion"></a>
-## 🧪 11. Guía de Pruebas Automatizadas y Operación
+## 11. Guía de Pruebas Automatizadas y Operación
 
 ### Ejecución de Pruebas Unitarias del Backend:
 ```powershell
@@ -684,7 +630,6 @@ El archivo `.env` se encuentra estrictamente ignorado en el control de versiones
 ```text
 Creating test database for alias 'default'...
 ........
-----------------------------------------------------------------------
 Ran 8 tests in 5.816s
 
 OK
@@ -713,10 +658,8 @@ Set-Location "frontend"; npm run build
 - **Backend API (Django REST Framework):** [http://127.0.0.1:8000](http://127.0.0.1:8000)
 - **Documentación de Transbank:** [GUIA_TRANSBANK_WEBPAY.md](file:///C:/Users/Rober/inacap%20e-commerce/GUIA_TRANSBANK_WEBPAY.md)
 
----
-
 <a id="sec-12-clean-code"></a>
-## 🧼 12. Estándares de Código Limpio (Clean Code) y Arquitectura de Software
+## 12. Estándares de Código Limpio (Clean Code) y Arquitectura de Software
 
 El proyecto fue desarrollado bajo estrictos principios de diseño limpio, mantenibilidad y bajo acoplamiento:
 
@@ -743,10 +686,8 @@ El backend se estructura en aplicaciones independientes dentro del directorio `a
 - Docstrings descriptivos en todas las clases y métodos clave.
 - Mapeo de identificadores UUIDv4 para todas las entidades clave, eliminando identificadores autoincrementales secuenciales predecibles (Insecure Direct Object References - IDOR).
 
----
-
 <a id="sec-13-marco-seguridad"></a>
-## 🔒 13. Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)
+## 13. Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)
 
 | Dominio de Seguridad | Control / Estándar | Implementación Concreta en el Código |
 | :--- | :--- | :--- |
@@ -760,10 +701,8 @@ El backend se estructura en aplicaciones independientes dentro del directorio `a
 | **Cabeceras HTTP de Servidor** | ISO 27001 A.8.26 | `Content-Security-Policy (CSP)`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`. |
 | **Consistencia Transaccional (ACID)** | Estándar ACID | Transacciones atómicas `@transaction.atomic` en la confirmación de pagos Webpay Plus y descuento de inventario en PostgreSQL. |
 
----
-
 <a id="sec-14-auditoria-cumplimiento"></a>
-## 📋 14. Auditoría de Cumplimiento ISO/IEC 27001:2022 y OWASP Top 10:2021 (Justificación y Análisis de Brecha)
+## 14. Auditoría de Cumplimiento ISO/IEC 27001:2022 y OWASP Top 10:2021 (Justificación y Análisis de Brecha)
 
 <a id="sec-14-1-diferencias-conceptuales"></a>
 ### 14.1. Diferencias Conceptuales: Gobernanza (ISO 27001) vs Riesgos de Aplicación (OWASP)
@@ -777,25 +716,21 @@ Para comprender con exactitud técnica la postura de seguridad de **Inacap E-Com
    - Su foco es el **código fuente, la arquitectura de software y los vectores de explotación directa** (inyecciones, fallos criptográficos, desbordamientos lógicos, etc.).
    - *OWASP define el QUÉ mitigar a nivel de programación y configuración del servidor*.
 
----
-
 <a id="sec-14-2-cumplimiento-owasp"></a>
 ### 14.2. Matriz de Cumplimiento Técnico OWASP Top 10:2021 (Por Qué Cumple)
 
 | Código OWASP | Riesgo Crítico | ¿Por Qué Cumple Inacap E-Commerce? (Justificación Técnica en el Código) | Estado |
 | :--- | :--- | :--- | :-: |
-| **A01:2021** | **Broken Access Control (Pérdida de Control de Acceso)** | - **RBAC Estricto:** Permisos verificados mediante `IsSellerOrAdmin` en endpoints mutantes.<br>- **Desacoplamiento de Identidad:** El modelo `UserProfile` actúa como proxy; ningún cliente puede ver órdenes ajenas.<br>- **Claves UUIDv4:** Todas las URLs y modelos usan identificadores aleatorios de 128 bits, impidiendo ataques de enumeración e IDOR (`/producto/<slug>` y UUIDs en base de datos). | 🟢 **Cumple** |
-| **A02:2021** | **Cryptographic Failures (Fallas Criptográficas)** | - **Cifrado de Contraseñas:** Algoritmo PBKDF2 con hash SHA-256 y 260.000 iteraciones (estándar Django).<br>- **Tokens JWT Firmados:** Firma HMAC-SHA256 con llave secreta segregada (`JWT_SECRET_KEY`) y caducidad de 24h.<br>- **Tokenización Transbank:** La tienda **nunca procesa, almacena ni toca números de tarjeta ni CVV**. Toda la transacción bancaria viaja cifrada hacia Webpay Plus. | 🟢 **Cumple** |
-| **A03:2021** | **Injection (Inyecciones SQL y XSS)** | - **Protección contra SQLi:** 100% de consultas parametrizadas a través del ORM de Django con driver nativo `psycopg 3` en PostgreSQL. Cero SQL concatenado.<br>- **Anti-XSS Engine en Frontend:** Módulo `security.js` con bloqueo físico de caracteres (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), purga automática en eventos de tipeo/pegado y renderizado con `{{ }}` que auto-escapa HTML.<br>- **Validadores Backend:** Serializadores DRF validan y rechazan patrones `<script>`, `onerror=`, `javascript:` y caracteres no permitidos.<br>- **Cabecera CSP:** `Content-Security-Policy` activa bloqueando ejecución de scripts no autorizados. | 🟢 **Cumple** |
-| **A04:2021** | **Insecure Design (Diseño Inseguro)** | - **Regla Fundamental:** Cálculo de totales de compra ejecutado 100% en backend (`/api/v1/payments/cart/calculate/`). El frontend solo envía IDs y cantidades. Si un atacante altera precios en JavaScript, el servidor ignora esos datos y recalcula desde la base de datos PostgreSQL.<br>- **Verificación de Stock Atómica:** Validación de inventario antes de autorizar la orden de compra. | 🟢 **Cumple** |
-| **A05:2021** | **Security Misconfiguration (Configuración Insegura)** | - **Cero Secretos Hardcodeados:** 100% de credenciales, hosts y llaves residen en `.env` (ignorado en `.gitignore`). Plantilla documentada `example.env`.<br>- **Cabeceras HTTP Blindadas:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`.<br>- **Restricción CORS:** Limitado estrictamente a los orígenes autorizados del frontend (`http://localhost:5173`). | 🟢 **Cumple** |
-| **A06:2021** | **Vulnerable and Outdated Components (Componentes Vulnerables y Obsoletos)** | - **Stack Moderno:** Python 3.14, Django 6.1, DRF 3.16, Vue 3.5, Vite 8, `psycopg 3.2`, `transbank-sdk 6.1`.<br>- **Dependencias Mínimas:** Cero paquetes innecesarios o librerías abandonadas en `requirements.txt` y `package.json`. | 🟢 **Cumple** |
-| **A07:2021** | **Identification and Authentication Failures (Fallas de Identificación y Autenticación)** | - **Política de Contraseñas Fuertes:** Validador `MinimumLengthValidator` forzando 8+ caracteres.<br>- **Segregación de Cuentas:** Las credenciales privadas (`UserCredential`) están separadas de la identidad pública (`UserProfile`) y civil (`Persona`).<br>- **Tokens con Expiración:** Sesiones JWT limitadas a 24 horas y re-autenticación obligatoria. | 🟢 **Cumple** |
-| **A08:2021** | **Software and Data Integrity Failures (Fallas de Integridad en Software y Datos)** | - **Protección contra Malware en Archivos:** El procesador Pillow ejecuta `image.verify()` leyendo los encabezados reales (magic bytes). Si un script malicioso se renombra como `.jpg`, es destruido.<br>- **Reconstrucción Gráfica:** Las imágenes subidas no se guardan directamente; se re-escalan a un lienzo neutro de 900x600 y se recomprimen a $\le 1$ MB antes de guardarse en disco. | 🟢 **Cumple** |
-| **A09:2021** | **Security Logging and Monitoring Failures (Fallas en Registro y Monitoreo de Seguridad)** | - **Middleware de Auditoría (`SecurityAuditLoggingMiddleware`):** Registra de forma estandarizada método HTTP, ruta, código de estado, usuario autenticado, IP de origen y tiempo de respuesta para todas las peticiones mutantes (POST, PUT, PATCH, DELETE). | 🟢 **Cumple** |
-| **A10:2021** | **Server-Side Request Forgery (SSRF)** | - **Carga Segura de Imágenes:** La plataforma no realiza peticiones HTTP del lado del servidor hacia URLs arbitrarias ingresadas por usuarios para descargar imágenes. Toda subida de vendedor se realiza mediante multipart/form-data (`image_file`) procesado localmente en búferes de memoria. | 🟢 **Cumple** |
-
----
+| **A01:2021** | **Broken Access Control (Pérdida de Control de Acceso)** | - **RBAC Estricto:** Permisos verificados mediante `IsSellerOrAdmin` en endpoints mutantes.<br>- **Desacoplamiento de Identidad:** El modelo `UserProfile` actúa como proxy; ningún cliente puede ver órdenes ajenas.<br>- **Claves UUIDv4:** Todas las URLs y modelos usan identificadores aleatorios de 128 bits, impidiendo ataques de enumeración e IDOR (`/producto/<slug>` y UUIDs en base de datos). | **Cumple** |
+| **A02:2021** | **Cryptographic Failures (Fallas Criptográficas)** | - **Cifrado de Contraseñas:** Algoritmo PBKDF2 con hash SHA-256 y 260.000 iteraciones (estándar Django).<br>- **Tokens JWT Firmados:** Firma HMAC-SHA256 con llave secreta segregada (`JWT_SECRET_KEY`) y caducidad de 24h.<br>- **Tokenización Transbank:** La tienda **nunca procesa, almacena ni toca números de tarjeta ni CVV**. Toda la transacción bancaria viaja cifrada hacia Webpay Plus. | **Cumple** |
+| **A03:2021** | **Injection (Inyecciones SQL y XSS)** | - **Protección contra SQLi:** 100% de consultas parametrizadas a través del ORM de Django con driver nativo `psycopg 3` en PostgreSQL. Cero SQL concatenado.<br>- **Anti-XSS Engine en Frontend:** Módulo `security.js` con bloqueo físico de caracteres (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), purga automática en eventos de tipeo/pegado y renderizado con `{{ }}` que auto-escapa HTML.<br>- **Validadores Backend:** Serializadores DRF validan y rechazan patrones `<script>`, `onerror=`, `javascript:` y caracteres no permitidos.<br>- **Cabecera CSP:** `Content-Security-Policy` activa bloqueando ejecución de scripts no autorizados. | **Cumple** |
+| **A04:2021** | **Insecure Design (Diseño Inseguro)** | - **Regla Fundamental:** Cálculo de totales de compra ejecutado 100% en backend (`/api/v1/payments/cart/calculate/`). El frontend solo envía IDs y cantidades. Si un atacante altera precios en JavaScript, el servidor ignora esos datos y recalcula desde la base de datos PostgreSQL.<br>- **Verificación de Stock Atómica:** Validación de inventario antes de autorizar la orden de compra. | **Cumple** |
+| **A05:2021** | **Security Misconfiguration (Configuración Insegura)** | - **Cero Secretos Hardcodeados:** 100% de credenciales, hosts y llaves residen en `.env` (ignorado en `.gitignore`). Plantilla documentada `example.env`.<br>- **Cabeceras HTTP Blindadas:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`.<br>- **Restricción CORS:** Limitado estrictamente a los orígenes autorizados del frontend (`http://localhost:5173`). | **Cumple** |
+| **A06:2021** | **Vulnerable and Outdated Components (Componentes Vulnerables y Obsoletos)** | - **Stack Moderno:** Python 3.14, Django 6.1, DRF 3.16, Vue 3.5, Vite 8, `psycopg 3.2`, `transbank-sdk 6.1`.<br>- **Dependencias Mínimas:** Cero paquetes innecesarios o librerías abandonadas en `requirements.txt` y `package.json`. | **Cumple** |
+| **A07:2021** | **Identification and Authentication Failures (Fallas de Identificación y Autenticación)** | - **Política de Contraseñas Fuertes:** Validador `MinimumLengthValidator` forzando 8+ caracteres.<br>- **Segregación de Cuentas:** Las credenciales privadas (`UserCredential`) están separadas de la identidad pública (`UserProfile`) y civil (`Persona`).<br>- **Tokens con Expiración:** Sesiones JWT limitadas a 24 horas y re-autenticación obligatoria. | **Cumple** |
+| **A08:2021** | **Software and Data Integrity Failures (Fallas de Integridad en Software y Datos)** | - **Protección contra Malware en Archivos:** El procesador Pillow ejecuta `image.verify()` leyendo los encabezados reales (magic bytes). Si un script malicioso se renombra como `.jpg`, es destruido.<br>- **Reconstrucción Gráfica:** Las imágenes subidas no se guardan directamente; se re-escalan a un lienzo neutro de 900x600 y se recomprimen a $\le 1$ MB antes de guardarse en disco. | **Cumple** |
+| **A09:2021** | **Security Logging and Monitoring Failures (Fallas en Registro y Monitoreo de Seguridad)** | - **Middleware de Auditoría (`SecurityAuditLoggingMiddleware`):** Registra de forma estandarizada método HTTP, ruta, código de estado, usuario autenticado, IP de origen y tiempo de respuesta para todas las peticiones mutantes (POST, PUT, PATCH, DELETE). | **Cumple** |
+| **A10:2021** | **Server-Side Request Forgery (SSRF)** | - **Carga Segura de Imágenes:** La plataforma no realiza peticiones HTTP del lado del servidor hacia URLs arbitrarias ingresadas por usuarios para descargar imágenes. Toda subida de vendedor se realiza mediante multipart/form-data (`image_file`) procesado localmente en búferes de memoria. | **Cumple** |
 
 <a id="sec-14-3-cumplimiento-iso27001"></a>
 ### 14.3. Matriz de Cumplimiento de Controles ISO/IEC 27001:2022 Anexo A (Por Qué Cumple)
@@ -812,8 +747,6 @@ Para comprender con exactitud técnica la postura de seguridad de **Inacap E-Com
 | **A.8.24** | **Uso de Criptografía (Use of Cryptography)** | Cifrado de claves, firmas digitales HMAC-SHA256 en tokens JWT y delegación de transacciones con tarjeta hacia pasarela bancaria oficial Transbank Webpay Plus. |
 | **A.8.26** | **Seguridad en Redes de Aplicación (Application Network Security)** | Encabezados HTTP de seguridad inyectados en middleware: `CSP`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`. |
 | **A.8.28** | **Codificación Segura (Secure Coding)** | Módulo de validación anti-XSS (`security.js`), parametrización absoluta en ORM PostgreSQL y validación estricta en serializadores DRF. |
-
----
 
 <a id="sec-14-4-analisis-brecha"></a>
 ### 14.4. Análisis de Brecha (Gap Analysis): ¿Qué Falta para Cumplirlas en su Totalidad?
@@ -853,35 +786,33 @@ flowchart TD
 ```
 
 #### A. Brechas Organizacionales y de Gobernanza (ISO/IEC 27001:2022):
-1. **Política Formal del SGSI y Liderazgo (Cláusula 5):**  
+1. **Política Formal del SGSI y Liderazgo (Cláusula 5):**
    - *Falta:* Aprobación formal por parte de la alta dirección de la organización (Consejo Directivo / C-Level) de la Política General de Seguridad de la Información y los objetivos anuales medibles.
-2. **Evaluación y Tratamiento Formal de Riesgos (Cláusula 6 / ISO 27005):**  
+2. **Evaluación y Tratamiento Formal de Riesgos (Cláusula 6 / ISO 27005):**
    - *Falta:* Elaboración de la Matriz de Riesgos institucional (metodología cualitativa/cuantitativa como Magerit o NIST SP 800-30), Declaración de Aplicabilidad (SoA - Statement of Applicability) y el Plan de Tratamiento de Riesgos (RTP).
-3. **Planes de Continuidad del Negocio y Recuperación ante Desastres (A.5.29, A.5.30):**  
+3. **Planes de Continuidad del Negocio y Recuperación ante Desastres (A.5.29, A.5.30):**
    - *Falta:* Documentación y pruebas simuladas semestrales del Plan de Continuidad del Negocio (BCP) y Recuperación ante Desastres (DRP) para la base de datos PostgreSQL, definiendo métricas formales de RTO (Recovery Time Objective $\le 2$ horas) y RPO (Recovery Point Objective $\le 15$ minutos) con respaldos distribuidos geográficamente (Geo-redundancy).
-4. **Gestión de Claves Criptográficas en Hardware (A.8.24):**  
+4. **Gestión de Claves Criptográficas en Hardware (A.8.24):**
    - *Falta:* En producción enterprise, las llaves maestras de cifrado (`SECRET_KEY` y firmas JWT) no deben residir en variables de texto de un archivo `.env`, sino gestionarse a través de un **Módulo de Seguridad de Hardware (HSM)** o servicios administrados de bóveda de claves como AWS KMS, Azure Key Vault o HashiCorp Vault con rotación periódica automática.
-5. **Programa de Formación y Concientización de Personas (A.6.3):**  
+5. **Programa de Formación y Concientización de Personas (A.6.3):**
    - *Falta:* Capacitación formal y periódica a desarrolladores, administradores de sistemas y operadores de soporte sobre ingeniería social, phishing y pautas de codificación segura.
-6. **Auditorías Internas y Certificación Externa Acreditada (Cláusula 9 y 10):**  
+6. **Auditorías Internas y Certificación Externa Acreditada (Cláusula 9 y 10):**
    - *Falta:* Ejecutar una auditoría interna formal por un auditor líder certificado (CISA o ISO 27001 Lead Auditor) y someter a la organización a las auditorías de Fase 1 (Revisión documental) y Fase 2 (Auditoría de campo e implementación de controles) por un organismo acreditador internacional (ej: BSI, AENOR, TÜV Rheinland o SGS).
 
----
-
 #### B. Brechas de Infraestructura y Operación Web (OWASP Top 10 en Producción):
-1. **Web Application Firewall (WAF) en Borde:**  
+1. **Web Application Firewall (WAF) en Borde:**
    - *Falta:* Desplegar un WAF de Capa 7 (ej: Cloudflare WAF, AWS WAF o Imperva) frente a la aplicación para filtrar tráfico malicioso, mitigar ataques de denegación de servicio distribuido (DDoS) y bloquear patrones de sondeo automatizado antes de que alcancen el servidor Django.
-2. **Limitación de Tasa (Rate Limiting) y Protección Anti-Fuerza Bruta:**  
+2. **Limitación de Tasa (Rate Limiting) y Protección Anti-Fuerza Bruta:**
    - *Falta:* Integrar `django-ratelimit` o límites en Nginx respaldados por un cluster en memoria **Redis** para estrangular peticiones masivas a los endpoints de autenticación (`/api/v1/auth/login/` limitado a máximo 5 intentos por minuto por dirección IP).
-3. **Mecanismo Anti-Bots (CAPTCHA Adaptativo):**  
+3. **Mecanismo Anti-Bots (CAPTCHA Adaptativo):**
    - *Falta:* Implementar Cloudflare Turnstile o Google reCAPTCHA v3 en los formularios públicos de registro y login para frenar ataques de relleno de credenciales (Credential Stuffing) ejecutados por redes de bots.
-4. **Pipeline CI/CD con Pruebas Automatizadas de Seguridad (DevSecOps):**  
+4. **Pipeline CI/CD con Pruebas Automatizadas de Seguridad (DevSecOps):**
    - *Falta:* Integrar en GitHub Actions herramientas continuas de:
      - **SAST (Static Application Security Testing):** SonarQube, Bandit para Python y Semgrep.
      - **SCA / SBOM (Software Bill of Materials):** Snyk o GitHub Dependabot para alertas de vulnerabilidades de librerías en tiempo real.
      - **DAST (Dynamic Application Security Testing):** Escaneo dinámico semanal con OWASP ZAP contra el entorno de Staging.
-5. **Terminación TLS con HSTS (HTTP Strict Transport Security):**  
+5. **Terminación TLS con HSTS (HTTP Strict Transport Security):**
    - *Falta:* Desplegar certificados SSL/TLS emitidos por una Autoridad Certificadora reconocida (Let's Encrypt o DigiCert) con la cabecera `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` forzando conexiones HTTPS exclusivas de extremo a extremo.
-6. **Penetration Testing (Ethical Hacking) Periódico:**  
+6. **Penetration Testing (Ethical Hacking) Periódico:**
    - *Falta:* Contratar pruebas de penetración de caja negra y caja gris conducidas por una firma externa de ciberseguridad al menos una vez al año o tras cada lanzamiento mayor de características.
 
