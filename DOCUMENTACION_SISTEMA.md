@@ -32,6 +32,11 @@
 11. [Guía de Pruebas Automatizadas y Operación](#sec-11-pruebas-operacion)
 12. [Estándares de Código Limpio (Clean Code) y Arquitectura de Software](#sec-12-clean-code)
 13. [Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)](#sec-13-marco-seguridad)
+14. [Auditoría de Cumplimiento ISO/IEC 27001:2022 y OWASP Top 10:2021 (Justificación y Análisis de Brecha)](#sec-14-auditoria-cumplimiento)
+   - 14.1. [Diferencias Conceptuales: Gobernanza (ISO 27001) vs Riesgos de Aplicación (OWASP)](#sec-14-1-diferencias-conceptuales)
+   - 14.2. [Matriz de Cumplimiento Técnico OWASP Top 10:2021 (Por Qué Cumple)](#sec-14-2-cumplimiento-owasp)
+   - 14.3. [Matriz de Cumplimiento de Controles ISO/IEC 27001:2022 Anexo A (Por Qué Cumple)](#sec-14-3-cumplimiento-iso27001)
+   - 14.4. [Análisis de Brecha (Gap Analysis): ¿Qué Falta para Cumplirlas en su Totalidad?](#sec-14-4-analisis-brecha)
 
 ---
 
@@ -630,3 +635,129 @@ El backend se estructura en aplicaciones independientes dentro del directorio `a
 | **Protección contra SQL Injection (SQLi)** | OWASP A03:2021 | Consultas parametrizadas nativas mediante el ORM de Django con driver `psycopg 3`. Cero sentencias SQL concatenadas. |
 | **Cabeceras HTTP de Servidor** | ISO 27001 A.8.26 | `Content-Security-Policy (CSP)`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`. |
 | **Consistencia Transaccional (ACID)** | Estándar ACID | Transacciones atómicas `@transaction.atomic` en la confirmación de pagos Webpay Plus y descuento de inventario en PostgreSQL. |
+
+---
+
+<a id="sec-14-auditoria-cumplimiento"></a>
+## 📋 14. Auditoría de Cumplimiento ISO/IEC 27001:2022 y OWASP Top 10:2021 (Justificación y Análisis de Brecha)
+
+<a id="sec-14-1-diferencias-conceptuales"></a>
+### 14.1. Diferencias Conceptuales: Gobernanza (ISO 27001) vs Riesgos de Aplicación (OWASP)
+
+Para comprender con exactitud técnica la postura de seguridad de **Inacap E-Commerce**, es fundamental distinguir el alcance de ambos estándares:
+
+1. **ISO/IEC 27001:2022:** Es un estándar internacional para el establecimiento, implementación, mantenimiento y mejora continua de un **Sistema de Gestión de Seguridad de la Información (SGSI / ISMS)**.
+   - Su foco es la **gobernanza integral del riesgo**: evalúa políticas organizacionales, gestión de personas, seguridad física y controles tecnológicos (93 controles agrupados en las 4 cláusulas del Anexo A).
+   - *ISO 27001 define el CÓMO gobernar y proteger los activos de información*, pero no prescribe líneas específicas de código fuente.
+2. **OWASP Top 10:2021:** Es el marco de referencia técnico global elaborado por la comunidad de seguridad de aplicaciones que clasifica los **10 riesgos más críticos en software web**.
+   - Su foco es el **código fuente, la arquitectura de software y los vectores de explotación directa** (inyecciones, fallos criptográficos, desbordamientos lógicos, etc.).
+   - *OWASP define el QUÉ mitigar a nivel de programación y configuración del servidor*.
+
+---
+
+<a id="sec-14-2-cumplimiento-owasp"></a>
+### 14.2. Matriz de Cumplimiento Técnico OWASP Top 10:2021 (Por Qué Cumple)
+
+| Código OWASP | Riesgo Crítico | ¿Por Qué Cumple Inacap E-Commerce? (Justificación Técnica en el Código) | Estado |
+| :--- | :--- | :--- | :-: |
+| **A01:2021** | **Broken Access Control (Pérdida de Control de Acceso)** | - **RBAC Estricto:** Permisos verificados mediante `IsSellerOrAdmin` en endpoints mutantes.<br>- **Desacoplamiento de Identidad:** El modelo `UserProfile` actúa como proxy; ningún cliente puede ver órdenes ajenas.<br>- **Claves UUIDv4:** Todas las URLs y modelos usan identificadores aleatorios de 128 bits, impidiendo ataques de enumeración e IDOR (`/producto/<slug>` y UUIDs en base de datos). | 🟢 **Cumple** |
+| **A02:2021** | **Cryptographic Failures (Fallas Criptográficas)** | - **Cifrado de Contraseñas:** Algoritmo PBKDF2 con hash SHA-256 y 260.000 iteraciones (estándar Django).<br>- **Tokens JWT Firmados:** Firma HMAC-SHA256 con llave secreta segregada (`JWT_SECRET_KEY`) y caducidad de 24h.<br>- **Tokenización Transbank:** La tienda **nunca procesa, almacena ni toca números de tarjeta ni CVV**. Toda la transacción bancaria viaja cifrada hacia Webpay Plus. | 🟢 **Cumple** |
+| **A03:2021** | **Injection (Inyecciones SQL y XSS)** | - **Protección contra SQLi:** 100% de consultas parametrizadas a través del ORM de Django con driver nativo `psycopg 3` en PostgreSQL. Cero SQL concatenado.<br>- **Anti-XSS Engine en Frontend:** Módulo `security.js` con bloqueo físico de caracteres (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), purga automática en eventos de tipeo/pegado y renderizado con `{{ }}` que auto-escapa HTML.<br>- **Validadores Backend:** Serializadores DRF validan y rechazan patrones `<script>`, `onerror=`, `javascript:` y caracteres no permitidos.<br>- **Cabecera CSP:** `Content-Security-Policy` activa bloqueando ejecución de scripts no autorizados. | 🟢 **Cumple** |
+| **A04:2021** | **Insecure Design (Diseño Inseguro)** | - **Regla Fundamental:** Cálculo de totales de compra ejecutado 100% en backend (`/api/v1/payments/cart/calculate/`). El frontend solo envía IDs y cantidades. Si un atacante altera precios en JavaScript, el servidor ignora esos datos y recalcula desde la base de datos PostgreSQL.<br>- **Verificación de Stock Atómica:** Validación de inventario antes de autorizar la orden de compra. | 🟢 **Cumple** |
+| **A05:2021** | **Security Misconfiguration (Configuración Insegura)** | - **Cero Secretos Hardcodeados:** 100% de credenciales, hosts y llaves residen en `.env` (ignorado en `.gitignore`). Plantilla documentada `example.env`.<br>- **Cabeceras HTTP Blindadas:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`.<br>- **Restricción CORS:** Limitado estrictamente a los orígenes autorizados del frontend (`http://localhost:5173`). | 🟢 **Cumple** |
+| **A06:2021** | **Vulnerable and Outdated Components (Componentes Vulnerables y Obsoletos)** | - **Stack Moderno:** Python 3.14, Django 6.1, DRF 3.16, Vue 3.5, Vite 8, `psycopg 3.2`, `transbank-sdk 6.1`.<br>- **Dependencias Mínimas:** Cero paquetes innecesarios o librerías abandonadas en `requirements.txt` y `package.json`. | 🟢 **Cumple** |
+| **A07:2021** | **Identification and Authentication Failures (Fallas de Identificación y Autenticación)** | - **Política de Contraseñas Fuertes:** Validador `MinimumLengthValidator` forzando 8+ caracteres.<br>- **Segregación de Cuentas:** Las credenciales privadas (`UserCredential`) están separadas de la identidad pública (`UserProfile`) y civil (`Persona`).<br>- **Tokens con Expiración:** Sesiones JWT limitadas a 24 horas y re-autenticación obligatoria. | 🟢 **Cumple** |
+| **A08:2021** | **Software and Data Integrity Failures (Fallas de Integridad en Software y Datos)** | - **Protección contra Malware en Archivos:** El procesador Pillow ejecuta `image.verify()` leyendo los encabezados reales (magic bytes). Si un script malicioso se renombra como `.jpg`, es destruido.<br>- **Reconstrucción Gráfica:** Las imágenes subidas no se guardan directamente; se re-escalan a un lienzo neutro de 900x600 y se recomprimen a $\le 1$ MB antes de guardarse en disco. | 🟢 **Cumple** |
+| **A09:2021** | **Security Logging and Monitoring Failures (Fallas en Registro y Monitoreo de Seguridad)** | - **Middleware de Auditoría (`SecurityAuditLoggingMiddleware`):** Registra de forma estandarizada método HTTP, ruta, código de estado, usuario autenticado, IP de origen y tiempo de respuesta para todas las peticiones mutantes (POST, PUT, PATCH, DELETE). | 🟢 **Cumple** |
+| **A10:2021** | **Server-Side Request Forgery (SSRF)** | - **Carga Segura de Imágenes:** La plataforma no realiza peticiones HTTP del lado del servidor hacia URLs arbitrarias ingresadas por usuarios para descargar imágenes. Toda subida de vendedor se realiza mediante multipart/form-data (`image_file`) procesado localmente en búferes de memoria. | 🟢 **Cumple** |
+
+---
+
+<a id="sec-14-3-cumplimiento-iso27001"></a>
+### 14.3. Matriz de Cumplimiento de Controles ISO/IEC 27001:2022 Anexo A (Por Qué Cumple)
+
+| Cláusula Anexo A | Control ISO 27001 | Implementación en la Arquitectura de Software |
+| :--- | :--- | :--- |
+| **A.5.15** | **Control de Acceso (Access Control)** | Implementado en base de datos mediante RBAC (`Rol` $\rightarrow$ `UserRol`) y en controladores con permisos DRF (`IsSellerOrAdmin`, `IsAuthenticated`). |
+| **A.5.17** | **Información de Autenticación (Authentication Info)** | Almacenamiento no reversible de contraseñas mediante derivación de claves PBKDF2 SHA-256 con salt criptográfico individual. |
+| **A.8.2** | **Derechos de Acceso Privilegiados (Privileged Access Rights)** | Separación explícita entre roles operativos (`BUYER`), comerciales (`SELLER`) y administrativos (`ADMIN`). |
+| **A.8.3** | **Restricción de Acceso a la Información (Info Access Restriction)** | Desacoplamiento de identidades: la entidad pública visible en compras y ventas es `UserProfile` (seudónimo protegido). El correo privado y datos civiles (`Persona`) nunca se exponen al catálogo. |
+| **A.8.5** | **Autenticación Segura (Secure Authentication)** | Verificación de credenciales con emisión de tokens JWT firmados criptográficamente. |
+| **A.8.9** | **Gestión de Configuración (Configuration Management)** | Aislamiento completo de configuraciones y secretos en archivos `.env` y plantilla documentada `example.env`. Cero secrets en código fuente. |
+| **A.8.15** | **Registro de Logs (Logging)** | Middleware de auditoría que registra eventos de modificación de datos, accesos de usuarios y operaciones de compra con marcas de tiempo. |
+| **A.8.24** | **Uso de Criptografía (Use of Cryptography)** | Cifrado de claves, firmas digitales HMAC-SHA256 en tokens JWT y delegación de transacciones con tarjeta hacia pasarela bancaria oficial Transbank Webpay Plus. |
+| **A.8.26** | **Seguridad en Redes de Aplicación (Application Network Security)** | Encabezados HTTP de seguridad inyectados en middleware: `CSP`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`. |
+| **A.8.28** | **Codificación Segura (Secure Coding)** | Módulo de validación anti-XSS (`security.js`), parametrización absoluta en ORM PostgreSQL y validación estricta en serializadores DRF. |
+
+---
+
+<a id="sec-14-4-analisis-brecha"></a>
+### 14.4. Análisis de Brecha (Gap Analysis): ¿Qué Falta para Cumplirlas en su Totalidad?
+
+Para que una organización obtenga una **Certificación Oficial Acreditada en ISO/IEC 27001:2022** y un nivel de madurez **OWASP ASVS Nivel 3 (Máxima Seguridad en Producción)**, se requiere abordar las siguientes brechas operacionales, organizacionales y de infraestructura que trascienden el código fuente de la aplicación:
+
+```mermaid
+flowchart TD
+    subgraph EstadoActual["Estado Actual: Cumplimiento de Código y Arquitectura"]
+        A1["Arquitectura User-UserProfile-Persona"]
+        A2["ORM PostgreSQL Parametrizado (Anti-SQLi)"]
+        A3["Anti-XSS Engine (Frontend + Backend)"]
+        A4["Cálculo Seguro en Servidor (Anti-Tampering)"]
+        A5["Transbank Webpay Plus Oficial"]
+        A6["Secretos en .env / example.env"]
+    end
+
+    subgraph BrechasISO["Brechas para 100% Certificación ISO 27001"]
+        B1["Gobernanza Formal: Políticas del SGSI y Alcance"]
+        B2["Metodología de Gestión de Riesgos (ISO 27005)"]
+        B3["Plan de Continuidad y Recuperación (BCP / DRP)"]
+        B4["Gestión de Claves en Hardware (Cloud KMS / HSM)"]
+        B5["Capacitación y Concienciación de Colaboradores"]
+        B6["Auditoría Externa Fase 1 y Fase 2 (Ente Certificador)"]
+    end
+
+    subgraph BrechasOWASP["Brechas para Producción Extrema OWASP"]
+        C1["WAF en Borde (Cloudflare / AWS WAF L7)"]
+        C2["Rate Limiting con Redis (Anti-Fuerza Bruta)"]
+        C3["CAPTCHA Adaptativo (Turnstile / reCAPTCHA v3)"]
+        C4["Pipeline CI/CD con SAST/DAST y SBOM Automático"]
+        C5["Terminación TLS con HSTS Preload"]
+    end
+
+    EstadoActual --> BrechasISO
+    EstadoActual --> BrechasOWASP
+```
+
+#### A. Brechas Organizacionales y de Gobernanza (ISO/IEC 27001:2022):
+1. **Política Formal del SGSI y Liderazgo (Cláusula 5):**  
+   - *Falta:* Aprobación formal por parte de la alta dirección de la organización (Consejo Directivo / C-Level) de la Política General de Seguridad de la Información y los objetivos anuales medibles.
+2. **Evaluación y Tratamiento Formal de Riesgos (Cláusula 6 / ISO 27005):**  
+   - *Falta:* Elaboración de la Matriz de Riesgos institucional (metodología cualitativa/cuantitativa como Magerit o NIST SP 800-30), Declaración de Aplicabilidad (SoA - Statement of Applicability) y el Plan de Tratamiento de Riesgos (RTP).
+3. **Planes de Continuidad del Negocio y Recuperación ante Desastres (A.5.29, A.5.30):**  
+   - *Falta:* Documentación y pruebas simuladas semestrales del Plan de Continuidad del Negocio (BCP) y Recuperación ante Desastres (DRP) para la base de datos PostgreSQL, definiendo métricas formales de RTO (Recovery Time Objective $\le 2$ horas) y RPO (Recovery Point Objective $\le 15$ minutos) con respaldos distribuidos geográficamente (Geo-redundancy).
+4. **Gestión de Claves Criptográficas en Hardware (A.8.24):**  
+   - *Falta:* En producción enterprise, las llaves maestras de cifrado (`SECRET_KEY` y firmas JWT) no deben residir en variables de texto de un archivo `.env`, sino gestionarse a través de un **Módulo de Seguridad de Hardware (HSM)** o servicios administrados de bóveda de claves como AWS KMS, Azure Key Vault o HashiCorp Vault con rotación periódica automática.
+5. **Programa de Formación y Concientización de Personas (A.6.3):**  
+   - *Falta:* Capacitación formal y periódica a desarrolladores, administradores de sistemas y operadores de soporte sobre ingeniería social, phishing y pautas de codificación segura.
+6. **Auditorías Internas y Certificación Externa Acreditada (Cláusula 9 y 10):**  
+   - *Falta:* Ejecutar una auditoría interna formal por un auditor líder certificado (CISA o ISO 27001 Lead Auditor) y someter a la organización a las auditorías de Fase 1 (Revisión documental) y Fase 2 (Auditoría de campo e implementación de controles) por un organismo acreditador internacional (ej: BSI, AENOR, TÜV Rheinland o SGS).
+
+---
+
+#### B. Brechas de Infraestructura y Operación Web (OWASP Top 10 en Producción):
+1. **Web Application Firewall (WAF) en Borde:**  
+   - *Falta:* Desplegar un WAF de Capa 7 (ej: Cloudflare WAF, AWS WAF o Imperva) frente a la aplicación para filtrar tráfico malicioso, mitigar ataques de denegación de servicio distribuido (DDoS) y bloquear patrones de sondeo automatizado antes de que alcancen el servidor Django.
+2. **Limitación de Tasa (Rate Limiting) y Protección Anti-Fuerza Bruta:**  
+   - *Falta:* Integrar `django-ratelimit` o límites en Nginx respaldados por un cluster en memoria **Redis** para estrangular peticiones masivas a los endpoints de autenticación (`/api/v1/auth/login/` limitado a máximo 5 intentos por minuto por dirección IP).
+3. **Mecanismo Anti-Bots (CAPTCHA Adaptativo):**  
+   - *Falta:* Implementar Cloudflare Turnstile o Google reCAPTCHA v3 en los formularios públicos de registro y login para frenar ataques de relleno de credenciales (Credential Stuffing) ejecutados por redes de bots.
+4. **Pipeline CI/CD con Pruebas Automatizadas de Seguridad (DevSecOps):**  
+   - *Falta:* Integrar en GitHub Actions herramientas continuas de:
+     - **SAST (Static Application Security Testing):** SonarQube, Bandit para Python y Semgrep.
+     - **SCA / SBOM (Software Bill of Materials):** Snyk o GitHub Dependabot para alertas de vulnerabilidades de librerías en tiempo real.
+     - **DAST (Dynamic Application Security Testing):** Escaneo dinámico semanal con OWASP ZAP contra el entorno de Staging.
+5. **Terminación TLS con HSTS (HTTP Strict Transport Security):**  
+   - *Falta:* Desplegar certificados SSL/TLS emitidos por una Autoridad Certificadora reconocida (Let's Encrypt o DigiCert) con la cabecera `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` forzando conexiones HTTPS exclusivas de extremo a extremo.
+6. **Penetration Testing (Ethical Hacking) Periódico:**  
+   - *Falta:* Contratar pruebas de penetración de caja negra y caja gris conducidas por una firma externa de ciberseguridad al menos una vez al año o tras cada lanzamiento mayor de características.
+

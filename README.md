@@ -156,6 +156,16 @@ El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 
 | **Cabeceras HTTP de Servidor** | `Content-Security-Policy (CSP)`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`. | ISO 27001 A.8.26 |
 | **Integridad Transaccional** | Transacciones ACID `@transaction.atomic` en pagos Transbank y descuento de stock en PostgreSQL. | Principio ACID |
 
+### 📋 Auditoría de Cumplimiento y Análisis de Brechas (Gap Analysis)
+- **¿Por qué cumple la aplicación a nivel de código?** El sistema implementa de forma nativa las mitigaciones de ingeniería de software para los 10 riesgos de **OWASP Top 10:2021** (Anti-SQLi, Anti-XSS, Anti-Tampering, RBAC, Criptografía PBKDF2/JWT) y los controles tecnológicos del **Anexo A de ISO/IEC 27001:2022** (A.5.15, A.8.2, A.8.5, A.8.9, A.8.15, A.8.24, A.8.26, A.8.28).
+- **¿Qué falta para una certificación formal al 100% en producción?** A nivel organizacional y de infraestructura empresarial se requiere:
+  1. *Gobernanza ISO 27001:* Política formal del SGSI aprobada por la alta dirección, matriz de riesgos (ISO 27005) y declaración de aplicabilidad (SoA).
+  2. *Resiliencia Operativa:* Plan de Recuperación ante Desastres (DRP) y Continuidad del Negocio (BCP) con RTO/RPO probados.
+  3. *Gestión de Claves:* Migrar secretos a un Módulo de Seguridad en Hardware (HSM) o Cloud KMS / Vault.
+  4. *Infraestructura en Borde:* WAF de Capa 7 (Cloudflare / AWS WAF), Rate Limiting con cluster Redis y CAPTCHA adaptativo (Turnstile) en login.
+  5. *Auditoría de Certificación:* Superar auditorías externas Fase 1 y 2 conducidas por un organismo acreditador internacional (BSI, AENOR, TÜV).
+- 👉 *Consulta el desglose y justificación exhaustiva en:* [DOCUMENTACION_SISTEMA.md (Capítulo 14)](DOCUMENTACION_SISTEMA.md#sec-14-auditoria-cumplimiento).
+
 ---
 
 ## 👥 Cuentas de Acceso de Demostración
