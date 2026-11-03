@@ -7,9 +7,10 @@ El proyecto incorpora una arquitectura de desacoplamiento de usuarios (`Userdjan
 ---
 
 ## 📑 Documentación Técnica
-- 📖 [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md): Documento técnico integral indexado (Instalación de frameworks y DB, Clean Code, Arquitectura de identidades, reglas de negocio, blindaje de imágenes, prevención OWASP Anti-XSS y matriz de mitigaciones).
+- 📖 [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md): Documento técnico integral indexado (Instalación de frameworks y DB, Diagrama C4, Matriz de Endpoints REST, Clean Code, Arquitectura de identidades, reglas de negocio, blindaje de imágenes, prevención OWASP Anti-XSS y matriz de mitigaciones).
 - 💳 [GUIA_TRANSBANK_WEBPAY.md](GUIA_TRANSBANK_WEBPAY.md): Guía paso a paso para programar e integrar la pasarela oficial Webpay Plus de Transbank.
 - ⚙️ [example.env](example.env): Plantilla de configuración comentada exhaustivamente para replicación por IA o desarrolladores.
+- 🐳 [docker-compose.yml](docker-compose.yml): Orquestación multi-servicio para arranque instantáneo en contenedores (PostgreSQL 16 + Django 6 + Vue 3).
 
 ---
 

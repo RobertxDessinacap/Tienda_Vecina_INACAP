@@ -9,11 +9,15 @@ class IsSellerOrAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return bool(
-            request.user and
-            request.user.is_authenticated and
-            request.user.role in (UserCredential.ROLE_SELLER, UserCredential.ROLE_ADMIN)
-        )
+        if not (request.user and request.user.is_authenticated):
+            return False
+        # Verificación directa sobre credencial o catálogo RBAC en UserProfile
+        if request.user.role in (UserCredential.ROLE_SELLER, UserCredential.ROLE_ADMIN):
+            return True
+        profile = getattr(request.user, 'user_profile', None)
+        if profile and (profile.has_role('SELLER') or profile.has_role('ADMIN')):
+            return True
+        return False
 
 
 class IsAccountOwnerOrReadOnly(permissions.BasePermission):

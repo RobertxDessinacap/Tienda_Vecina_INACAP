@@ -5,6 +5,9 @@ from PIL import Image
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 
+# Blindaje contra ataques de Denegación de Servicio por Decompression Bomb (Pixel Bombs)
+Image.MAX_IMAGE_PIXELS = 10_000_000
+
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
 TARGET_WIDTH = 900
 TARGET_HEIGHT = 600

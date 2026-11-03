@@ -7,6 +7,10 @@
 ## 📑 Índice de Contenidos
 
 1. [Ficha Técnica del Proyecto y Stack Tecnológico](#sec-1-ficha-tecnica)
+   - 1.1. [Stack Tecnológico y Dependencias](#sec-1-1-stack-tecnologico)
+   - 1.2. [Diagrama de Arquitectura Global C4 (Container Level)](#sec-1-2-diagrama-c4)
+   - 1.3. [Matriz Consolidada de Contratos de la API REST (API Cheat Sheet)](#sec-1-3-matriz-api)
+   - 1.4. [Orquestación de Contenedores con Docker Compose](#sec-1-4-docker-compose)
 2. [Arquitectura de Usuarios: Userdjango - UserProfile - Persona y Roles](#sec-2-arquitectura-usuarios)
 3. [Integración con PostgreSQL mediante Django ORM (psycopg 3)](#sec-3-integracion-postgresql)
    - 3.1. [Arquitectura de Conexión y Driver psycopg 3](#sec-3-1-arquitectura-psycopg3)
@@ -16,10 +20,17 @@
    - 3.5. [Transacciones ACID, Integridad Referencial y Protección SQLi](#sec-3-5-transacciones-sqli)
    - 3.6. [Administración del Cluster PostgreSQL y Migraciones](#sec-3-6-administracion-cluster)
 4. [Especificaciones de Seguridad de Imágenes (900x600 y $\le$ 1 MB)](#sec-4-seguridad-imagenes)
+   - 4.1. [Algoritmo de Procesamiento y Blindaje Gráfico](#sec-4-1-algoritmo-procesamiento)
+   - 4.2. [Defensa contra Bombas de Descompresión (Pixel Bombs)](#sec-4-2-pixel-bombs)
 5. [Características ADS (+250 Caracteres) y URL Limpia](#sec-5-caracteristicas-ads)
+   - 5.1. [Regla de Negocio ADS (+250 Caracteres)](#sec-5-1-regla-ads)
+   - 5.2. [URL Limpia y Exposición del Vendedor](#sec-5-2-url-limpia)
+   - 5.3. [Transparencia Comercial (SERNAC / Ley 19.496) vs Privacidad de Datos PII](#sec-5-3-sernac-pii)
 6. [Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)](#sec-6-calculo-carrito)
 7. [Pasarela de Pagos: Transbank Webpay Plus Oficial](#sec-7-pasarela-transbank)
 8. [Taxonomía de Categorías del E-Commerce y Categoría "Otros"](#sec-8-taxonomia-categorias)
+   - 8.1. [Catálogo Oficial de 14 Categorías](#sec-8-1-catalogo-categorias)
+   - 8.2. [Módulo de Despacho y Selector Territorial de Comunas Chilenas](#sec-8-2-selector-comunas)
 9. [Prevención Integral contra Cross-Site Scripting (XSS) e Inyección (OWASP)](#sec-9-prevencion-xss)
    - 9.1. [Definición y Clasificación de Amenazas XSS](#sec-9-1-definicion-xss)
    - 9.2. [Estándar y Recomendaciones Oficiales OWASP](#sec-9-2-estandar-owasp)
@@ -43,6 +54,9 @@
 <a id="sec-1-ficha-tecnica"></a>
 ## 📌 1. Ficha Técnica del Proyecto y Stack Tecnológico
 
+<a id="sec-1-1-stack-tecnologico"></a>
+### 1.1. Stack Tecnológico y Dependencias
+
 | Capa | Tecnología / Componente | Versión | Propósito Arquitectónico |
 | :--- | :--- | :--- | :--- |
 | **Backend API** | Python + Django + Django REST Framework | 3.14 / 6.1 / 3.16 | API REST modular, autenticación JWT, validación de negocio y ORM seguro |
@@ -52,6 +66,92 @@
 | **Pasarela de Pagos** | Transbank SDK | 6.1 | Transbank Webpay Plus oficial (init y commit de tarjetas de débito/crédito) |
 | **Seguridad de Secretos** | `python-dotenv` | 1.2 | Todas las credenciales sensibles aisladas en archivo `.env` |
 | **Seguridad Anti-XSS** | OWASP Top 10 + CSP + Regex Sanitizer | Estándar | Filtro de caracteres prohibidos (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), CSP |
+
+---
+
+<a id="sec-1-2-diagrama-c4"></a>
+### 1.2. Diagrama de Arquitectura Global C4 (Container Level)
+
+El siguiente diagrama ilustra la interacción desacoplada entre el cliente SPA, los servicios de backend, la base de datos PostgreSQL y la pasarela bancaria externa:
+
+```mermaid
+flowchart TB
+    subgraph Cliente["Navegador Web / Dispositivo Móvil"]
+        User["Usuario Comprador / Vendedor"]
+        SPA["Frontend SPA (Vue 3 + Vite + Pinia)\nPuerto: 5173\n- MercadoHeader & PromoBanner\n- ProductCleanUrlView (/producto/:slug)\n- CartDrawer & PaymentCarouselModal\n- LocationModal (Comunas Chile)\n- Anti-XSS Engine (security.js)"]
+    end
+
+    subgraph BackendAPI["Backend Seguro (Django 6 REST Framework)"]
+        Nginx["Servidor Web / API Gateway\nPuerto: 8000"]
+        Middlewares["Capa de Middlewares ISO 27001\n- CorsMiddleware\n- ISO27001SecurityHeaders (CSP, nosniff, DENY)\n- SecurityAuditLoggingMiddleware"]
+        
+        subgraph Modulos["Aplicaciones de Dominio (SRP)"]
+            AppAccounts["apps.accounts\n- UserCredential (Userdjango)\n- UserProfile (Intermedio)\n- Persona (Civil PII)\n- Rol -> UserRol (RBAC)"]
+            AppProducts["apps.products\n- Catálogo y Categorías (inc. Otros)\n- Validador ADS (+250 chars)\n- Generador de Slugs Limpios\n- Pillow 900x600 Engine"]
+            AppPayments["apps.payments\n- calculate_safe_cart_totals()\n- Order & OrderItem\n- TransbankWebpayService"]
+        end
+    end
+
+    subgraph Persistencia["Capa de Persistencia y Almacenamiento"]
+        Postgres[("PostgreSQL 16.8 (psycopg 3)\nPuerto: 5432\n18 Tablas Relacionales\nTransacciones ACID & Parametrización")]
+        MediaStorage[("Almacenamiento Media\nmedia/productos/\nFotos JPEG 900x600 <= 1 MB")]
+        SQLiteFallback[("SQLite Local (Fallback)\nActivo solo si PostgreSQL no responde")]
+    end
+
+    subgraph Pasarelas["Entidades Externas Bancarias"]
+        TBK["Servidores Oficiales Transbank\nWebpay Plus Integration\n(Comercio: 597055555532)"]
+    end
+
+    User -->|Interacción UI / HTTPS| SPA
+    SPA -->|JSON REST + Bearer JWT| Nginx
+    Nginx --> Middlewares
+    Middlewares --> Modulos
+    
+    AppAccounts -->|psycopg 3 Driver| Postgres
+    AppProducts -->|psycopg 3 Driver| Postgres
+    AppProducts -->|Guarda imágenes optimizadas| MediaStorage
+    AppPayments -->|Consulta precios reales & Stock atómico| Postgres
+    AppPayments -->|SDK Oficial / HTTPS| TBK
+
+    Middlewares -.->|Detección Socket Port 5432| SQLiteFallback
+```
+
+---
+
+<a id="sec-1-3-matriz-api"></a>
+### 1.3. Matriz Consolidada de Contratos de la API REST (API Cheat Sheet)
+
+| Método | Endpoint | Autenticación | Rol Mínimo | Payload Requerido (JSON / Form) | Códigos HTTP | Propósito |
+| :---: | :--- | :---: | :---: | :--- | :---: | :--- |
+| `POST` | `/api/v1/auth/register/` | Pública | Cualquiera | `{"email", "password", "nombres", "apellidos", "public_alias", "role"}` | `201`, `400` | Registro de usuario, creación atómica de Persona, UserProfile y asignación ROL $\rightarrow$ UserRol |
+| `POST` | `/api/v1/auth/login/` | Pública | Cualquiera | `{"email", "password"}` | `200`, `401`, `403` | Verificación PBKDF2 SHA256 y emisión de Bearer Token JWT |
+| `GET` | `/api/v1/auth/profile/` | Requerida | Cualquiera | *None* | `200`, `401` | Obtiene el UserProfile intermedio, datos de Persona y roles asignados |
+| `GET` | `/api/v1/products/` | Pública | Cualquiera | Params: `?category=`, `?q=`, `?ordering=` | `200` | Catálogo general MercadoLibre paginado con filtros anti-XSS |
+| `POST` | `/api/v1/products/` | Requerida | `SELLER` / `ADMIN` | `title`, `price`, `description`, `caracteristicas_ads`, `category`, `image_file` | `201`, `400`, `403` | Publicación de producto. Normaliza foto a 900x600 $\le$ 1MB y genera URL limpia |
+| `GET` | `/api/v1/products/<slug>/` | Pública | Cualquiera | *None* | `200`, `404` | Vista de producto con URL limpia; expone nombre completo del vendedor |
+| `GET` | `/api/v1/products/categories/` | Pública | Cualquiera | *None* | `200` | Listado de 14 categorías oficiales incluyendo "Otros" |
+| `POST` | `/api/v1/payments/cart/calculate/` | Pública | Cualquiera | `{"items": [{"product_id": "uuid", "quantity": 1}]}` | `200`, `400` | Cálculo seguro de carrito 100% en servidor PostgreSQL (Anti-Tampering JS) |
+| `POST` | `/api/v1/payments/transbank/init/` | Pública | Cualquiera | `{"items": [...], "payment_method": "WEBPAY_PLUS"}` | `201`, `400` | Inicializa compra, crea orden y retorna `token_ws` y URL oficial Webpay Plus |
+| `POST` | `/api/v1/payments/transbank/commit/` | Pública | Cualquiera | `{"token": "token_ws"}` | `200`, `400`, `404` | Confirma pago con Transbank, descuenta stock en PostgreSQL y emite voucher imprimible |
+| `GET` | `/api/v1/payments/methods/` | Pública | Cualquiera | *None* | `200` | Catálogo del Carrusel de Medios de Pago |
+
+---
+
+<a id="sec-1-4-docker-compose"></a>
+### 1.4. Orquestación de Contenedores con Docker Compose
+
+El repositorio incluye el archivo `docker-compose.yml` para desplegar el stack completo de forma homogénea en cualquier entorno Linux, macOS o Windows con un solo comando:
+
+```bash
+# Iniciar base de datos PostgreSQL 16, Backend Django y Frontend Vue 3
+docker compose up --build -d
+
+# Visualizar logs del ecosistema
+docker compose logs -f
+
+# Detener todos los servicios
+docker compose down
+```
 
 ---
 
@@ -258,7 +358,8 @@ Conforme a la instrucción:
 
 Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/products/utils.py).
 
-### Algoritmo de Procesamiento y Blindaje:
+<a id="sec-4-1-algoritmo-procesamiento"></a>
+### 4.1. Algoritmo de Procesamiento y Blindaje:
 1. **Lista Blanca de Extensiones:** Solo se admiten `.jpg`, `.jpeg`, `.png`, `.webp`. Extensiones ejecutables (`.exe`, `.sh`, `.php`, `.js`) son rechazadas antes de procesar.
 2. **Inspección de Encabezado Real (Magic Bytes):** Pillow ejecuta `image.verify()`. Si un atacante intenta renombrar un malware como `.jpg`, la verificación estructural falla y el archivo se destruye en memoria.
 3. **Conversión a Lienzo Neutro 900x600:**
@@ -269,18 +370,30 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
    - El archivo se procesa en un búfer en memoria (`io.BytesIO`).
    - Si el tamaño resultante supera `1,048,576 bytes` (1 MB), el compresor reduce progresivamente la calidad JPEG (`quality=85, 80, 75...`) hasta que el tamaño del archivo se sitúe por debajo de 1 MB.
 
+<a id="sec-4-2-pixel-bombs"></a>
+### 4.2. Defensa contra Bombas de Descompresión (Pixel Bombs / Decompression Bombs)
+- **Vulnerabilidad:** Un atacante puede crear un archivo de imagen de unos pocos kilobytes comprimidos que, al expandirse en memoria RAM, requiera gigabytes de almacenamiento (por ejemplo, una imagen de $50.000 \times 50.000$ píxeles), provocando un colapso por denegación de servicio (DoS / Out-of-Memory).
+- **Mitigación en Inacap E-Commerce:** En [`backend/apps/products/utils.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/products/utils.py) se define el umbral de seguridad estricto `Image.MAX_IMAGE_PIXELS = 10_000_000`. Pillow rechaza de inmediato con una excepción `DecompressionBombError` cualquier archivo que exceda 10 megapíxeles antes de reservar memoria RAM.
+
 ---
 
 <a id="sec-5-caracteristicas-ads"></a>
 ## 📝 5. Características ADS (+250 Caracteres) y URL Limpia
 
-### Regla de Negocio ADS:
+<a id="sec-5-1-regla-ads"></a>
+### 5.1. Regla de Negocio ADS:
 - **Validación Estricta:** El campo `caracteristicas_ads` tiene un validador obligatorio `MinLengthValidator(251)` a nivel de base de datos y serializador DRF. No se permite crear ningún producto con 250 o menos caracteres.
 - **Contador en Tiempo Real:** En el frontend ([`CreateProductModal.vue`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/components/CreateProductModal.vue)), el vendedor dispone de un indicador interactivo que calcula los caracteres restantes y solo habilita la publicación cuando se cumple la condición.
 
-### URL Limpia (Clean URL):
+<a id="sec-5-2-url-limpia"></a>
+### 5.2. URL Limpia (Clean URL):
 - El sistema genera slugs basados exclusivamente en el nombre del producto (ej: `/producto/samsung-galaxy-s24-ultra`).
 - La vista de producto ([`ProductCleanUrlView.vue`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/components/ProductCleanUrlView.vue)) consume este slug, presenta la fotografía normalizada 900x600 y despliega el **nombre del usuario que ingresó la publicación** extraído desde `UserProfile -> Persona.nombre_completo`.
+
+<a id="sec-5-3-sernac-pii"></a>
+### 5.3. Transparencia Comercial (SERNAC / Ley N° 19.496) vs Protección de Datos Civiles (PII)
+- **Principio de Transparencia Comercial:** La Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y las circulares normativas del SERNAC para el comercio electrónico en Chile exigen que el consumidor conozca la identidad comercial de la contraparte que ofrece un producto o servicio antes de celebrar la transacción. Por este motivo, el sistema expone públicamente el `nombre_completo` del vendedor en la ficha del producto (`ProductCleanUrlView.vue`).
+- **Principio de Minimización de Datos (ISO/IEC 27001 A.8.11 & Ley N° 19.628):** Los datos personales sensibles almacenados en la tabla `accounts_persona` (RUT, número de teléfono particular, correo electrónico privado y dirección de residencia física) **no se exponen** jamás en la API pública ni en las vistas del catálogo. Solo el personal de auditoría o los administradores autenticados mediante JWT con rol `ADMIN` pueden consultar estos atributos para fines de facturación o mediación legal.
 
 ---
 
@@ -350,6 +463,9 @@ sequenceDiagram
 <a id="sec-8-taxonomia-categorias"></a>
 ## 🏷️ 8. Taxonomía de Categorías del E-Commerce y Categoría "Otros"
 
+<a id="sec-8-1-catalogo-categorias"></a>
+### 8.1. Catálogo Oficial de 14 Categorías
+
 El sistema cuenta con un catálogo representativo de las categorías típicas del comercio electrónico chileno, incluyendo de forma obligatoria la categoría **"Otros"**:
 
 | # | Nombre de la Categoría | Slug Oficial | Ícono Sugerido |
@@ -370,6 +486,14 @@ El sistema cuenta con un catálogo representativo de las categorías típicas de
 | 14 | **Otros** (Requerida) | `otros` | `Package` |
 
 Todos los productos asociados a la categoría "Otros" pueden filtrarse inmediatamente mediante la ruta `/api/v1/products/?category=otros` o haciendo clic en el enlace "Otros" de la barra de navegación.
+
+<a id="sec-8-2-selector-comunas"></a>
+### 8.2. Módulo de Despacho y Selector Territorial de Comunas Chilenas
+- **Ubicación del Componente:** [`frontend/src/components/LocationModal.vue`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/components/LocationModal.vue) y Store reactivo [`frontend/src/stores/location.js`](file:///C:/Users/Rober/inacap%20e-commerce/frontend/src/stores/location.js).
+- **Cobertura Territorial:** Incorpora el catálogo completo de regiones y comunas de Chile (Santiago Centro, Las Condes, Providencia, Maipú, Viña del Mar, Valparaíso, Concepción, Temuco, Antofagasta, Puerto Montt, etc.).
+- **Geolocalización Automática:** El store `location.js` implementa la API nativa `navigator.geolocation` del navegador para detectar coordenadas de latitud/longitud y mapear la ubicación del usuario respetando permisos de privacidad (Permissions-Policy).
+- **Protección Anti-XSS en el Selector:** El campo de búsqueda de comunas está vinculado al motor `blockDangerousCharsOnKeypress` y `sanitizeEventInput`, evitando que parámetros territoriales contengan secuencias de escape o caracteres especiales prohibidos.
+- **Integración con Carrito:** La comuna seleccionada se almacena en `localStorage` de forma reactiva y se despliega en el encabezado global (`MercadoHeader.vue`), calculando las etiquetas de "Despacho Express" en menos de 24 horas para la zona correspondiente.
 
 ---
 
