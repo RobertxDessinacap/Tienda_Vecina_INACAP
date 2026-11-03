@@ -30,6 +30,8 @@
    - 9.7. [Matriz de Vectores de Ataque XSS vs Mitigaciones](#sec-9-7-matriz-mitigaciones)
 10. [Gestión de Secretos (.env / ONV) y Blindaje ISO 27001](#sec-10-gestion-secretos)
 11. [Guía de Pruebas Automatizadas y Operación](#sec-11-pruebas-operacion)
+12. [Estándares de Código Limpio (Clean Code) y Arquitectura de Software](#sec-12-clean-code)
+13. [Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)](#sec-13-marco-seguridad)
 
 ---
 
@@ -581,3 +583,50 @@ Set-Location "frontend"; npm run build
 - **Frontend SPA (Vue 3 + Vite):** [http://localhost:5173](http://localhost:5173)
 - **Backend API (Django REST Framework):** [http://127.0.0.1:8000](http://127.0.0.1:8000)
 - **Documentación de Transbank:** [GUIA_TRANSBANK_WEBPAY.md](file:///C:/Users/Rober/inacap%20e-commerce/GUIA_TRANSBANK_WEBPAY.md)
+
+---
+
+<a id="sec-12-clean-code"></a>
+## 🧼 12. Estándares de Código Limpio (Clean Code) y Arquitectura de Software
+
+El proyecto fue desarrollado bajo estrictos principios de diseño limpio, mantenibilidad y bajo acoplamiento:
+
+### 12.1. Separación de Responsabilidades por Aplicaciones (SRP / Django Domain Apps)
+El backend se estructura en aplicaciones independientes dentro del directorio `apps/`, cada una con una delimitación clara de contexto de negocio:
+- **`apps.accounts`:** Responsable exclusivo de la autenticación, modelo de usuario, perfil intermedio (`UserProfile`), datos de personas reales (`Persona`) y control de acceso basado en roles (`Rol`, `UserRol`).
+- **`apps.products`:** Responsable exclusivo del catálogo, categorización, validación de especificaciones ADS (+250 car.) y motor de procesamiento gráfico seguro Pillow.
+- **`apps.payments`:** Responsable del ciclo de vida de órdenes de compra, cálculo inmutable de totales del carrito y conexión con la pasarela de pago Transbank Webpay Plus.
+- **`apps.security`:** Responsable transversal de la inyección de cabeceras de seguridad HTTP, cumplimiento de auditoría (ISO 27001 A.8.15) y sanitización.
+
+### 12.2. Desacoplamiento Total Backend RESTful $\leftrightarrow$ Frontend SPA
+- **Cero Templates Monolíticos:** No se utilizan vistas renderizadas por servidor con Django Templates (`.html`), lo cual evita fugas de lógica de presentación al backend y previene ataques de inyección de plantillas del lado del servidor (SSTI).
+- **Contratos JSON Tipados:** Toda la comunicación entre cliente y servidor se realiza mediante respuestas HTTP JSON estructuradas, con códigos de estado semánticos (`200 OK`, `201 Created`, `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`).
+
+### 12.3. Principio DRY (Don't Repeat Yourself) y Servicios Dedicados
+- La lógica de negocio sensible no reside en los controladores/vistas, sino en módulos de servicio dedicados (`services.py` y `utils.py`):
+  - `calculate_safe_cart_totals()`: Centraliza el cálculo de precios reales desde la base de datos PostgreSQL.
+  - `TransbankWebpayService`: Encapsula la inicialización y confirmación de transacciones con el SDK de Transbank.
+  - `process_and_secure_product_image()`: Centraliza la normalización a 900x600 y compresión a $\le 1$ MB.
+  - `security.js`: Centraliza las expresiones regulares y funciones anti-XSS reutilizables en cualquier componente Vue.
+
+### 12.4. Legibilidad, Tipado y Nomenclatura Semántica
+- Nombres de variables y funciones autodescriptivos en español e inglés sin abreviaciones ambiguas.
+- Docstrings descriptivos en todas las clases y métodos clave.
+- Mapeo de identificadores UUIDv4 para todas las entidades clave, eliminando identificadores autoincrementales secuenciales predecibles (Insecure Direct Object References - IDOR).
+
+---
+
+<a id="sec-13-marco-seguridad"></a>
+## 🔒 13. Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)
+
+| Dominio de Seguridad | Control / Estándar | Implementación Concreta en el Código |
+| :--- | :--- | :--- |
+| **Gestión de Credenciales** | ISO 27001 A.8.9 | 100% de contraseñas, secretos JWT y credenciales Transbank aisladas en `.env` (cero secrets en `settings.py`). Plantilla documentada `example.env`. |
+| **Privacidad de Identidades (PII)** | ISO 27001 A.8.2 | Desacoplamiento `UserCredential` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona`. El alias público es la única entidad visible en catálogo y compras. |
+| **Control de Acceso (RBAC)** | ISO 27001 A.8.2 | Catálogo `Rol` y asignación `UserRol`. Los compradores no pueden publicar productos; permisos verificados con `IsSellerOrAdmin`. |
+| **Integridad de Transacciones** | OWASP A04:2021 | Cálculo de totales del carrito ejecutado 100% en backend vía PostgreSQL ORM. El cliente solo envía IDs y cantidades. Cero confianza en JS. |
+| **Protección contra Inyección de Código** | OWASP A03:2021 | Bloqueo en tiempo real de caracteres peligrosos (`[`, `]`, `{`, `}`, `*`, `<`, `>`, `\`, `;`), purga en pegado (`security.js`) y validadores en serializadores. |
+| **Seguridad de Archivos y Malware** | OWASP A08:2021 | Inspección de magic bytes con Pillow `image.verify()`, lista blanca de extensiones, reconstrucción en lienzo neutro 900x600 y compresión $\le 1$ MB. |
+| **Protección contra SQL Injection (SQLi)** | OWASP A03:2021 | Consultas parametrizadas nativas mediante el ORM de Django con driver `psycopg 3`. Cero sentencias SQL concatenadas. |
+| **Cabeceras HTTP de Servidor** | ISO 27001 A.8.26 | `Content-Security-Policy (CSP)`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`. |
+| **Consistencia Transaccional (ACID)** | Estándar ACID | Transacciones atómicas `@transaction.atomic` en la confirmación de pagos Webpay Plus y descuento de inventario en PostgreSQL. |
