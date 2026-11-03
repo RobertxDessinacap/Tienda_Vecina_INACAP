@@ -476,26 +476,65 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 ---
 
 <a id="sec-10-gestion-secretos"></a>
-## 🔒 10. Gestión de Secretos (.env / ONV) y Blindaje ISO 27001
+## 🔒 10. Gestión de Secretos (.env / ONV), Plantilla `example.env` y Replicación para IA
 
 Conforme a la instrucción:
 > *"Los datos de configuraciones no en el Setting, todo lo que tenga seguridad en ONV (.env)"*.
 
-Ninguna credencial sensible, clave criptográfica, contraseña de base de datos o llave de Transbank está escrita directamente en `settings.py`. Todas las variables se declaran en el archivo `.env`:
+Ninguna credencial sensible, clave criptográfica, contraseña de base de datos o llave de Transbank está escrita directamente en `settings.py`. Todas las variables se declaran en el archivo `.env`.
 
+Para garantizar que cualquier otra sesión de Inteligencia Artificial o nuevo desarrollador pueda replicar el entorno al instante sin fricción, se suministra el archivo **`example.env`** (disponible también como `.env.example`) completamente comentado en español:
+
+### Instrucciones de Replicación para otra IA o Desarrollador:
+1. **Copiar plantilla de variables:**
+   ```bash
+   cp example.env backend/.env
+   ```
+2. **Levantar PostgreSQL local:**
+   - Crear la base de datos: `CREATE DATABASE inacap_ecommerce;`
+   - El backend se conectará automáticamente en el puerto 5432 con el driver `psycopg 3`.
+3. **Mecanismo de Resiliencia (Fallback SQLite):**
+   - Si la máquina donde se replica el proyecto no tiene PostgreSQL activo, la variable `DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE=True` activa automáticamente SQLite local para que las pruebas y la ejecución no se detengan.
+
+### Estructura Comentada de `example.env`:
 ```env
+# ==============================================================================
+# INACAP E-COMMERCE - PLANTILLA example.env
+# ==============================================================================
+
+# 1. Núcleo Django
 DEBUG=True
-SECRET_KEY=django-insecure-inacap-ecommerce-secure-key-iso27001-development-mode
+SECRET_KEY=django-insecure-inacap-ecommerce-secure-key-iso27001-development-mode-2026
+ALLOWED_HOSTS=127.0.0.1,localhost
+
+# 2. Base de Datos Relacional PostgreSQL (ORM psycopg 3)
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=inacap_ecommerce
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_HOST=127.0.0.1
 DB_PORT=5432
+DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE=True
+
+# 3. Seguridad de Red y CORS
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+CORS_ALLOW_CREDENTIALS=True
+
+# 4. Autenticación JWT Segura
 JWT_SECRET_KEY=inacap-jwt-super-secret-iso27001-signature-key-2026
 JWT_EXPIRATION_HOURS=24
+
+# 5. Políticas de Seguridad ISO 27001 & OWASP
+SECURE_BROWSER_XSS_FILTER=True
+SECURE_CONTENT_TYPE_NOSNIFF=True
+X_FRAME_OPTIONS=DENY
+PASSWORD_MIN_LENGTH=8
+MAX_LOGIN_ATTEMPTS=5
+
+# 6. Pasarela de Pagos Transbank Webpay Plus
 TRANSBANK_COMMERCE_CODE=597055555532
 TRANSBANK_API_KEY=579B532A7440BB061E185D8252273087
+TRANSBANK_ENVIRONMENT=TEST
 ```
 
 El archivo `.env` se encuentra estrictamente ignorado en el control de versiones a través de `.gitignore`, evitando filtraciones accidentales al repositorio Git.

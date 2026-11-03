@@ -54,11 +54,11 @@ source .venv/bin/activate
 # 4. Instalar dependencias requeridas
 pip install -r requirements.txt
 
-# 5. Crear archivo de entorno .env a partir de la plantilla
+# 5. Crear archivo de entorno .env a partir de la plantilla example.env (o .env.example)
 # En Windows (PowerShell):
-Copy-Item .env.example .env
+Copy-Item example.env .env
 # En Linux / macOS:
-cp .env.example .env
+cp example.env .env
 
 # 6. Ejecutar migraciones de base de datos
 python manage.py migrate
