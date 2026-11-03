@@ -13,6 +13,8 @@ export const useProductStore = defineStore('products', {
     activeCategory: null,
     searchQuery: '',
     ordering: '-created_at',
+    activeView: 'catalog', // 'catalog' | 'product_page'
+    activeProductSlug: null,
   }),
 
   actions: {
@@ -50,13 +52,48 @@ export const useProductStore = defineStore('products', {
       }
     },
 
+    async fetchProductBySlug(slug) {
+      this.loading = true
+      try {
+        const response = await apiClient.get(`/products/${slug}/`)
+        const prod = response.data.data
+        this.selectedProduct = prod
+        this.activeProductSlug = slug
+        this.activeView = 'product_page'
+        // Push URL limpia en la barra de direcciones del navegador
+        window.history.pushState({}, '', `/producto/${slug}`)
+        return prod
+      } catch (err) {
+        console.error('Error obteniendo producto por URL limpia:', err)
+        return null
+      } finally {
+        this.loading = false
+      }
+    },
+
+    goToCatalog() {
+      this.activeView = 'catalog'
+      this.selectedProduct = null
+      this.activeProductSlug = null
+      window.history.pushState({}, '', '/')
+      this.fetchProducts()
+    },
+
     setSearch(query) {
       this.searchQuery = query
+      if (this.activeView !== 'catalog') {
+        this.activeView = 'catalog'
+        window.history.pushState({}, '', '/')
+      }
       this.fetchProducts()
     },
 
     setCategory(categorySlug) {
       this.activeCategory = this.activeCategory === categorySlug ? null : categorySlug
+      if (this.activeView !== 'catalog') {
+        this.activeView = 'catalog'
+        window.history.pushState({}, '', '/')
+      }
       this.fetchProducts()
     },
 
@@ -66,13 +103,7 @@ export const useProductStore = defineStore('products', {
     },
 
     openDetail(product) {
-      this.selectedProduct = product
-      this.detailModalOpen = true
-    },
-
-    closeDetail() {
-      this.selectedProduct = null
-      this.detailModalOpen = false
+      this.fetchProductBySlug(product.slug)
     },
 
     openCreateModal() {
@@ -83,10 +114,13 @@ export const useProductStore = defineStore('products', {
       this.createModalOpen = false
     },
 
-    async createProduct(productData) {
+    async createProduct(formDataOrJson) {
       this.loading = true
       try {
-        const response = await apiClient.post('/products/', productData)
+        const isFormData = formDataOrJson instanceof FormData
+        const headers = isFormData ? { 'Content-Type': 'multipart/form-data' } : {}
+
+        const response = await apiClient.post('/products/', formDataOrJson, { headers })
         const newProduct = response.data.data
         this.products.unshift(newProduct)
         this.closeCreateModal()
@@ -98,6 +132,8 @@ export const useProductStore = defineStore('products', {
           const firstKey = Object.keys(errors)[0]
           if (firstKey && Array.isArray(errors[firstKey])) {
             msg = `${firstKey}: ${errors[firstKey][0]}`
+          } else if (typeof errors === 'string') {
+            msg = errors
           }
         }
         return { success: false, error: msg }

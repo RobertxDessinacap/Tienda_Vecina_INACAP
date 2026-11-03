@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from apps.products.models import Product, Category
-from apps.accounts.serializers import AccountProxyPublicSerializer
+from apps.accounts.serializers import UserProfileSerializer
+from apps.products.utils import process_and_secure_product_image
 
 class CategorySerializer(serializers.ModelSerializer):
     products_count = serializers.IntegerField(source='products.count', read_only=True)
@@ -12,10 +13,13 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    seller_alias = serializers.CharField(source='seller_account.public_alias', read_only=True)
-    seller_reputation = serializers.FloatField(source='seller_account.reputation_score', read_only=True)
-    seller = AccountProxyPublicSerializer(source='seller_account', read_only=True)
+    seller_alias = serializers.CharField(source='seller_profile.public_alias', read_only=True)
+    # Nombre del usuario que ingresó (obtenido desde Persona -> UserProfile)
+    seller_nombre = serializers.CharField(source='seller_profile.persona.nombre_completo', read_only=True)
+    seller_reputation = serializers.FloatField(source='seller_profile.reputation_score', read_only=True)
+    seller = UserProfileSerializer(source='seller_profile', read_only=True)
     discount_percentage = serializers.ReadOnlyField()
+    display_image_url = serializers.ReadOnlyField()
 
     class Meta:
         model = Product
@@ -24,40 +28,49 @@ class ProductSerializer(serializers.ModelSerializer):
             'title',
             'slug',
             'description',
+            'caracteristicas_ads',
             'price',
             'original_price',
             'discount_percentage',
             'stock',
             'category',
             'category_name',
+            'image',
             'image_url',
+            'display_image_url',
             'free_shipping',
             'installments',
             'seller',
             'seller_alias',
+            'seller_nombre',
             'seller_reputation',
             'rating',
             'reviews_count',
             'created_at',
         ]
-        read_only_fields = ['id', 'slug', 'seller', 'rating', 'reviews_count', 'created_at']
+        read_only_fields = ['id', 'slug', 'seller', 'rating', 'reviews_count', 'created_at', 'display_image_url']
 
 
 class ProductCreateUpdateSerializer(serializers.ModelSerializer):
     """
-    Serializer used exclusively for creating and updating products.
-    Enforces business logic, positive pricing and auto-attaches Intermediate Account.
+    Serializador de creación con validaciones estrictas requeridas por el profesor:
+    - Características ADS con + de 250 caracteres.
+    - Imagen validada por extensión y formato real, normalizada a 900x600 y <= 1 MB.
     """
+    image_file = serializers.ImageField(write_only=True, required=False)
+
     class Meta:
         model = Product
         fields = [
             'title',
             'description',
+            'caracteristicas_ads',
             'price',
             'original_price',
             'stock',
             'category',
             'image_url',
+            'image_file',
             'free_shipping',
             'installments',
         ]
@@ -65,26 +78,37 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
     def validate_title(self, value):
         cleaned = value.strip()
         if len(cleaned) < 3:
-            raise serializers.ValidationError("El título debe tener al menos 3 caracteres.")
+            raise serializers.ValidationError("El nombre del producto debe tener al menos 3 caracteres.")
         return cleaned
 
     def validate_price(self, value):
         if value <= 0:
-            raise serializers.ValidationError("El precio debe ser mayor a 0.")
+            raise serializers.ValidationError("El precio debe ser un valor positivo mayor a 0.")
         return value
 
-    def validate_stock(self, value):
-        if value < 0:
-            raise serializers.ValidationError("El stock no puede ser negativo.")
-        return value
+    def validate_caracteristicas_ads(self, value):
+        cleaned = value.strip()
+        # Validación explícita: "+ de 250 caracteres"
+        if len(cleaned) <= 250:
+            raise serializers.ValidationError(
+                f"Las características en ADS deben contener MÁS DE 250 caracteres (actual: {len(cleaned)} caracteres)."
+            )
+        return cleaned
 
     def create(self, validated_data):
         request = self.context.get('request')
-        # Crucial security link: Attach product to Intermediate Account (AccountProxy)
-        # Never store raw user credential ID in product record
-        seller_account = request.user.intermediate_account
+        image_file = validated_data.pop('image_file', None)
+
+        # Procesamiento y blindaje de la imagen a 900x600 y max 1 MB
+        processed_image = None
+        if image_file:
+            processed_image = process_and_secure_product_image(image_file)
+
+        # Asignación al UserProfile del usuario vendedor
+        seller_profile = request.user.user_profile
         product = Product.objects.create(
-            seller_account=seller_account,
+            seller_profile=seller_profile,
+            image=processed_image,
             **validated_data
         )
         return product

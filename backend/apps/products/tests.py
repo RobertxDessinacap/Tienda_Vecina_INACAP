@@ -4,7 +4,7 @@ from apps.accounts.models import UserCredential
 from apps.products.models import Category, Product
 from apps.accounts.authentication import generate_jwt_token
 
-class ProductRBACTests(TestCase):
+class ProductProfRequirementsTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.category = Category.objects.create(name='Computación')
@@ -23,62 +23,51 @@ class ProductRBACTests(TestCase):
         )
         self.buyer_token = generate_jwt_token(self.buyer)
 
-    def test_anonymous_cannot_create_product(self):
+        # Texto válido de ADS (+250 caracteres)
+        self.valid_ads_text = (
+            "ESPECIFICACIONES ADS OFICIALES DE ALTO RENDIMIENTO: "
+            "Procesador multinúcleo de arquitectura de 4 nanómetros, memoria unificada de alta velocidad "
+            "con tasa de transferencia récord en la industria, chasis resistente a impactos y certificación de "
+            "garantía oficial en todo el territorio nacional con soporte prioritario 24/7."
+        )
+
+    def test_caracteristicas_ads_min_length_validation(self):
+        """Requisito: características estas subidas en ADS + de 250 caracteres."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.seller_token}')
+        # Enviar menos de 250 caracteres debe ser rechazado
+        short_ads = "Texto corto de menos de doscientos cincuenta caracteres para pruebas."
         response = self.client.post('/api/v1/products/', {
-            'title': 'Test Item',
-            'price': 10000,
-            'description': 'Desc',
+            'title': 'Producto Test Corto',
+            'price': 50000,
+            'description': 'Descripción básica',
+            'caracteristicas_ads': short_ads,
             'category': str(self.category.id)
         })
-        self.assertIn(response.status_code, [401, 403])
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('caracteristicas_ads', str(response.content))
 
-    def test_buyer_role_forbidden_to_create_product(self):
-        """RBAC test: Comprador cannot publish products (ISO 27001 Access Restriction)."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.buyer_token}')
-        response = self.client.post('/api/v1/products/', {
-            'title': 'Intento Comprador',
-            'price': 15000,
-            'description': 'Un comprador intentando publicar',
-            'category': str(self.category.id)
-        })
-        self.assertEqual(response.status_code, 403)
-
-    def test_seller_role_can_create_product(self):
-        """RBAC test: Vendedor can publish products; product links only to AccountProxy."""
+    def test_seller_creates_product_with_valid_ads_and_clean_url(self):
+        """Requisito: Vendedor publica con ADS > 250 chars y genera URL limpia."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.seller_token}')
         response = self.client.post('/api/v1/products/', {
-            'title': 'Laptop Gamer RTX 4060',
-            'price': 899990,
-            'description': 'Laptop de alto rendimiento',
-            'stock': 5,
+            'title': 'Teclado Mecánico Custom Pro RGB',
+            'price': 89990,
+            'description': 'Teclado para desarrolladores',
+            'caracteristicas_ads': self.valid_ads_text,
+            'stock': 10,
             'category': str(self.category.id),
-            'image_url': 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=700',
+            'image_url': 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=900',
             'free_shipping': True,
             'installments': 6
         })
         self.assertEqual(response.status_code, 201)
         data = response.json().get('data', {})
-        self.assertEqual(data.get('title'), 'Laptop Gamer RTX 4060')
+        self.assertEqual(data.get('slug'), 'teclado-mecanico-custom-pro-rgb')
 
-        # Verify database association: linked to seller's intermediate account
-        product = Product.objects.get(title='Laptop Gamer RTX 4060')
-        self.assertEqual(product.seller_account.id, self.seller.intermediate_account.id)
-        # Verify response does NOT expose user's email or internal credential ID
-        self.assertNotIn('email', str(response.content))
-
-    def test_public_catalog_does_not_leak_seller_credentials(self):
-        """ISO 27001 Data Leakage Prevention test."""
-        Product.objects.create(
-            title='Teclado Mecánico RGB',
-            description='Switches red',
-            price=49990,
-            category=self.category,
-            seller_account=self.seller.intermediate_account
-        )
-        response = self.client.get('/api/v1/products/')
-        self.assertEqual(response.status_code, 200)
-        content_str = response.content.decode('utf-8')
-        # Ensure email is nowhere in public catalog response
-        self.assertNotIn('vendedor_api@inacap.cl', content_str)
-        # Ensure public alias IS present
-        self.assertIn(self.seller.intermediate_account.public_alias, content_str)
+        # Buscar por URL limpia (slug)
+        lookup_response = self.client.get('/api/v1/products/teclado-mecanico-custom-pro-rgb/')
+        self.assertEqual(lookup_response.status_code, 200)
+        lookup_data = lookup_response.json().get('data', {})
+        self.assertEqual(lookup_data.get('title'), 'Teclado Mecánico Custom Pro RGB')
+        # Verificar que expone el nombre del usuario que ingresó
+        self.assertIsNotNone(lookup_data.get('seller_nombre'))

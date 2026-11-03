@@ -5,11 +5,11 @@ from apps.accounts.serializers import (
     UserRegistrationSerializer,
     LoginSerializer,
     UserMeSerializer,
-    AccountProxyPublicSerializer
+    UserProfileSerializer
 )
 
 class RegisterAPIView(APIView):
-    """Public registration with automatic intermediate account generation."""
+    """Registro con creación automática de Persona, UserProfile y UserRol."""
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -17,23 +17,23 @@ class RegisterAPIView(APIView):
         if serializer.is_valid():
             result = serializer.save()
             user = result['user']
-            proxy = result['intermediate_account']
+            profile = result['user_profile']
             return Response({
                 "status": "success",
-                "message": "Usuario registrado exitosamente con Cuenta Intermedia protegida.",
+                "message": "Usuario registrado exitosamente con UserProfile y Persona asociada.",
                 "token": result['token'],
                 "user": {
                     "id": str(user.id),
                     "email": user.email,
                     "role": user.role,
-                    "intermediate_account": AccountProxyPublicSerializer(proxy).data
+                    "user_profile": UserProfileSerializer(profile).data
                 }
             }, status=status.HTTP_201_CREATED)
         return Response({"status": "fail", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginAPIView(APIView):
-    """Public secure login generating ISO 27001 compliant JWT."""
+    """Autenticación segura generando JWT bajo ISO 27001."""
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -41,7 +41,7 @@ class LoginAPIView(APIView):
         if serializer.is_valid():
             result = serializer.validated_data
             user = result['user']
-            proxy = result['intermediate_account']
+            profile = result['user_profile']
             return Response({
                 "status": "success",
                 "message": "Autenticación exitosa.",
@@ -50,14 +50,14 @@ class LoginAPIView(APIView):
                     "id": str(user.id),
                     "email": user.email,
                     "role": user.role,
-                    "intermediate_account": AccountProxyPublicSerializer(proxy).data
+                    "user_profile": UserProfileSerializer(profile).data
                 }
             }, status=status.HTTP_200_OK)
         return Response({"status": "fail", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MeAPIView(APIView):
-    """Returns authenticated user's credentials and intermediate account."""
+    """Retorna información del usuario, roles activos y UserProfile que se mueve en el sistema."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):

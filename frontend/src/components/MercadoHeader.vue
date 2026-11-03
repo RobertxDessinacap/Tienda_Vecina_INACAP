@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useProductStore } from '../stores/products'
+import { useCartStore } from '../stores/cart'
 import {
   Search,
   ShoppingCart,
@@ -17,6 +18,7 @@ import {
 
 const authStore = useAuthStore()
 const productStore = useProductStore()
+const cartStore = useCartStore()
 
 const localSearch = ref('')
 
@@ -41,7 +43,7 @@ function handleSellClick() {
       <!-- Top Row: Logo, Search Bar, Header Banner/Actions -->
       <div class="flex items-center justify-between gap-4">
         <!-- Logo -->
-        <div class="flex items-center gap-2 cursor-pointer select-none" @click="productStore.setCategory(null); productStore.setSearch('')">
+        <div class="flex items-center gap-2 cursor-pointer select-none" @click="productStore.goToCatalog()">
           <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-xs border border-yellow-300">
             <span class="text-xl font-black text-[#2D3277] tracking-tighter">IN</span>
           </div>
@@ -163,10 +165,17 @@ function handleSellClick() {
           </template>
 
           <!-- Cart Button -->
-          <button class="relative p-1 text-gray-800 hover:text-black transition-colors">
+          <button
+            @click="cartStore.openCart()"
+            class="relative p-1 text-gray-800 hover:text-black transition-colors"
+            title="Ver Carrito de Compras"
+          >
             <ShoppingCart class="w-4 h-4" />
-            <span class="absolute -top-1 -right-1 bg-[#3483FA] text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-              0
+            <span
+              v-if="cartStore.totalItemsCount > 0"
+              class="absolute -top-1 -right-1 bg-[#3483FA] text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center animate-in zoom-in-50 duration-200"
+            >
+              {{ cartStore.totalItemsCount }}
             </span>
           </button>
         </div>

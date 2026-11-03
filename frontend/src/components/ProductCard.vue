@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import { Zap, Star, ShieldCheck } from 'lucide-vue-next'
+import { Zap, Star, ShieldCheck, ShoppingCart } from 'lucide-vue-next'
 import { useProductStore } from '../stores/products'
+import { useCartStore } from '../stores/cart'
 
 const props = defineProps({
   product: {
@@ -11,6 +12,7 @@ const props = defineProps({
 })
 
 const productStore = useProductStore()
+const cartStore = useCartStore()
 
 // Format currency to Chilean Pesos (CLP)
 function formatCLP(amount) {
@@ -30,16 +32,25 @@ const installmentValue = computed(() => {
     class="bg-white rounded-lg border border-gray-200/90 hover:border-gray-300 hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group select-none"
   >
     <!-- Image Area -->
-    <div class="relative w-full pt-[85%] bg-white border-b border-gray-100 overflow-hidden">
+    <div class="relative w-full pt-[75%] bg-white border-b border-gray-100 overflow-hidden">
       <img
-        :src="product.image_url"
+        :src="product.display_image_url || product.image_url"
         :alt="product.title"
-        class="absolute inset-0 w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+        class="absolute inset-0 w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
         loading="lazy"
       />
       <div v-if="product.discount_percentage > 0" class="absolute top-2 left-2 bg-[#00A650] text-white font-black text-[10px] px-2 py-0.5 rounded-xs tracking-tight">
         {{ product.discount_percentage }}% OFF
       </div>
+
+      <!-- Quick Add to Cart Button -->
+      <button
+        @click.stop="cartStore.addItem(product, 1)"
+        class="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/95 hover:bg-[#3483FA] text-gray-700 hover:text-white shadow-md border border-gray-200 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+        title="Agregar al Carrito"
+      >
+        <ShoppingCart class="w-4 h-4" />
+      </button>
     </div>
 
     <!-- Product Details Area -->

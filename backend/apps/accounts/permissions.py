@@ -25,6 +25,6 @@ class IsAccountOwnerOrReadOnly(permissions.BasePermission):
             return False
         if request.user.role == UserCredential.ROLE_ADMIN:
             return True
-        # Check if obj.seller_account matches the intermediate account of request.user
-        seller_account = getattr(obj, 'seller_account', None)
-        return seller_account and seller_account.credential_id == request.user.id
+        # Check if obj.seller_profile matches the UserProfile of request.user
+        seller_profile = getattr(obj, 'seller_profile', getattr(obj, 'seller_account', None))
+        return bool(seller_profile and seller_profile.user_id == request.user.id)

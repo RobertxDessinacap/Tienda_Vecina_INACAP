@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     # Local Domain Apps
     'apps.accounts',
     'apps.products',
+    'apps.payments',
     'apps.security',
 ]
 
@@ -200,6 +201,16 @@ SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER', 'True').lower
 SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF', 'True').lower() in ('true', '1')
 X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
 
-# JWT Secrets
+# JWT Authentication Secrets
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
 JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 24))
+
+# Media Files (Uploaded product images: 900x600, <=1MB)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Transbank Webpay Plus Integration (ISO 27001 Secure Payments)
+TRANSBANK_COMMERCE_CODE = os.getenv('TRANSBANK_COMMERCE_CODE', '597055555532')
+TRANSBANK_API_KEY = os.getenv('TRANSBANK_API_KEY', '579B532A7440BB061E185D8252273087')
+TRANSBANK_ENVIRONMENT = os.getenv('TRANSBANK_ENVIRONMENT', 'TEST')
+

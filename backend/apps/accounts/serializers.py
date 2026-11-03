@@ -1,26 +1,59 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
 from django.utils import timezone
 from datetime import timedelta
-from apps.accounts.models import UserCredential, AccountProxy, UserProfileSensitive
+from apps.accounts.models import UserCredential, UserProfile, Persona, Rol, UserRol
 from apps.accounts.authentication import generate_jwt_token
 
-class AccountProxyPublicSerializer(serializers.ModelSerializer):
-    """Public representation of Intermediate Account. No PII exposed."""
+class PersonaSerializer(serializers.ModelSerializer):
     class Meta:
-        model = AccountProxy
-        fields = ['id', 'public_alias', 'reputation_score', 'is_verified_seller', 'total_sales']
+        model = Persona
+        fields = ['id', 'rut', 'nombres', 'apellidos', 'nombre_completo', 'telefono', 'direccion']
+        read_only_fields = ['id', 'nombre_completo']
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """
+    Serializador del UserProfile (la entidad intermedia que se mueve en el sistema).
+    """
+    persona_nombre = serializers.CharField(source='persona.nombre_completo', read_only=True)
+    roles = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = [
+            'id',
+            'public_alias',
+            'persona_nombre',
+            'reputation_score',
+            'is_verified_seller',
+            'total_sales',
+            'roles',
+            'created_at'
+        ]
         read_only_fields = fields
+
+    def get_roles(self, obj):
+        return [ur.rol.nombre for ur in obj.user_roles.filter(activo=True)]
+
+
+# Alias para compatibilidad
+AccountProxyPublicSerializer = UserProfileSerializer
 
 
 class UserMeSerializer(serializers.ModelSerializer):
-    """Current authenticated user profile summary."""
-    intermediate_account = AccountProxyPublicSerializer(read_only=True)
+    """Resumen de la sesión del usuario actual."""
+    user_profile = UserProfileSerializer(read_only=True)
+    roles = serializers.SerializerMethodField()
 
     class Meta:
         model = UserCredential
-        fields = ['id', 'email', 'role', 'intermediate_account', 'created_at']
+        fields = ['id', 'email', 'role', 'roles', 'user_profile', 'created_at']
         read_only_fields = fields
+
+    def get_roles(self, obj):
+        if hasattr(obj, 'user_profile'):
+            return obj.user_profile.get_roles()
+        return [obj.role]
 
 
 class UserRegistrationSerializer(serializers.Serializer):
@@ -31,6 +64,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         default=UserCredential.ROLE_BUYER
     )
     full_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    rut = serializers.CharField(max_length=20, required=False, allow_blank=True)
     custom_alias = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
     def validate_email(self, value):
@@ -48,7 +82,8 @@ class UserRegistrationSerializer(serializers.Serializer):
         email = validated_data['email']
         password = validated_data['password']
         role = validated_data.get('role', UserCredential.ROLE_BUYER)
-        full_name = validated_data.get('full_name', '')
+        full_name = validated_data.get('full_name', '').strip()
+        rut = validated_data.get('rut', '').strip()
         custom_alias = validated_data.get('custom_alias', '').strip()
 
         user = UserCredential.objects.create_user(
@@ -57,26 +92,27 @@ class UserRegistrationSerializer(serializers.Serializer):
             role=role
         )
 
-        # Update alias if user supplied a custom public pseudonym
+        profile = user.user_profile
         if custom_alias:
-            proxy = user.intermediate_account
-            # Ensure unique alias
-            if not AccountProxy.objects.filter(public_alias=custom_alias).exclude(id=proxy.id).exists():
-                proxy.public_alias = custom_alias
-                proxy.save()
+            if not UserProfile.objects.filter(public_alias=custom_alias).exclude(id=profile.id).exists():
+                profile.public_alias = custom_alias
+                profile.save()
 
-        # Create segregated sensitive profile
-        UserProfileSensitive.objects.create(
-            credential=user,
-            full_name=full_name
-        )
+        # Actualizar datos de la Persona asociada
+        if full_name:
+            parts = full_name.split(' ', 1)
+            profile.persona.nombres = parts[0]
+            profile.persona.apellidos = parts[1] if len(parts) > 1 else ''
+        if rut:
+            profile.persona.rut = rut
+        profile.persona.save()
 
         token = generate_jwt_token(user)
         return {
             'user': user,
             'token': token,
             'role': user.role,
-            'intermediate_account': user.intermediate_account
+            'user_profile': profile
         }
 
 
@@ -93,10 +129,9 @@ class LoginSerializer(serializers.Serializer):
         except UserCredential.DoesNotExist:
             raise serializers.ValidationError("Credenciales inválidas. Compruebe correo y contraseña.")
 
-        # Check account lockout
         if user.is_locked():
             raise serializers.ValidationError(
-                f"Cuenta temporalmente bloqueada por exceso de intentos fallidos. Intente más tarde."
+                "Cuenta temporalmente bloqueada por exceso de intentos fallidos. Intente más tarde."
             )
 
         if not user.check_password(password):
@@ -106,7 +141,6 @@ class LoginSerializer(serializers.Serializer):
             user.save(update_fields=['failed_login_attempts', 'locked_until'])
             raise serializers.ValidationError("Credenciales inválidas. Compruebe correo y contraseña.")
 
-        # Success: reset attempts
         user.failed_login_attempts = 0
         user.locked_until = None
         user.last_login = timezone.now()
@@ -117,5 +151,5 @@ class LoginSerializer(serializers.Serializer):
             'user': user,
             'token': token,
             'role': user.role,
-            'intermediate_account': user.intermediate_account
+            'user_profile': user.user_profile
         }
