@@ -202,7 +202,7 @@ function fillDemo(email, pass, role = null) {
           </div>
 
           <div>
-            <label class="block font-bold text-gray-700 mb-1">Nombre Completo (PII Segregada)</label>
+            <label class="block font-bold text-gray-700 mb-1">Nombre Completo</label>
             <input
               v-model="registerForm.fullName"
               type="text"
@@ -211,14 +211,14 @@ function fillDemo(email, pass, role = null) {
             />
           </div>
 
-          <!-- Intermediate Account Public Alias Box (ISO 27001) -->
+          <!-- Public Alias Box -->
           <div class="bg-amber-50/80 border border-amber-200 p-2.5 rounded-md space-y-1">
             <div class="flex items-center gap-1.5 font-bold text-amber-900">
               <ShieldCheck class="w-4 h-4 text-amber-700" />
-              <span>Cuenta Intermedia Pública (Seudónimo):</span>
+              <span>Nombre Público de Usuario o Tienda:</span>
             </div>
             <p class="text-[10px] text-amber-800 leading-tight">
-              Para proteger tu privacidad (ISO 27001), los compradores y el catálogo sólo verán tu alias público, nunca tu correo:
+              Por tu seguridad y privacidad, los demás usuarios solo verán tu alias público y nunca tu correo:
             </p>
             <input
               v-model="registerForm.customAlias"

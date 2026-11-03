@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import MercadoHeader from './components/MercadoHeader.vue'
 import PromoBanner from './components/PromoBanner.vue'
 import ProductCard from './components/ProductCard.vue'
@@ -10,13 +10,12 @@ import AuthModal from './components/AuthModal.vue'
 import CartDrawer from './components/CartDrawer.vue'
 import PaymentCarouselModal from './components/PaymentCarouselModal.vue'
 import SecurityBadge from './components/SecurityBadge.vue'
+import InfoPagesModal from './components/InfoPagesModal.vue'
 import { useProductStore } from './stores/products'
 import { useAuthStore } from './stores/auth'
 import {
   SlidersHorizontal,
   PackageOpen,
-  PlusCircle,
-  HelpCircle,
   Shield,
   CreditCard,
   Truck,
@@ -25,6 +24,7 @@ import {
 
 const productStore = useProductStore()
 const authStore = useAuthStore()
+const infoModalRef = ref(null)
 
 onMounted(async () => {
   await Promise.all([
@@ -84,7 +84,7 @@ onMounted(async () => {
                 <span v-else>Catálogo Oficial en Mercado Inacap</span>
               </h2>
               <p class="text-xs text-gray-500">
-                {{ productStore.products.length }} productos con URL limpia y despacho inmediato
+                {{ productStore.products.length }} productos disponibles con despacho inmediato
               </p>
             </div>
 
@@ -162,6 +162,7 @@ onMounted(async () => {
     <PaymentCarouselModal />
     <CreateProductModal />
     <AuthModal />
+    <InfoPagesModal ref="infoModalRef" />
 
     <!-- MercadoLibre Clean Footer -->
     <footer class="bg-white border-t border-gray-200/90 text-gray-600 text-xs py-8 mt-12">
@@ -185,8 +186,8 @@ onMounted(async () => {
           <div class="flex items-center gap-3">
             <Shield class="w-7 h-7 text-emerald-600" />
             <div>
-              <strong class="text-gray-900 block font-bold">User - UserProfile - Persona</strong>
-              <span class="text-[11px] text-gray-500">Rolificación ROL -> UserRol</span>
+              <strong class="text-gray-900 block font-bold">Compra 100% Protegida</strong>
+              <span class="text-[11px] text-gray-500">Garantía oficial en todas tus compras</span>
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -198,14 +199,23 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Working Footer Links -->
         <div class="flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-gray-500">
           <div class="flex items-center gap-4 flex-wrap justify-center">
-            <a href="#" class="hover:text-black">Términos y condiciones</a>
-            <a href="#" class="hover:text-black">Política de privacidad ISO 27001</a>
-            <a href="#" class="hover:text-black">Documentación Transbank Webpay Plus</a>
-            <a href="#" class="hover:text-black">Ayuda Inacap E-Commerce</a>
+            <button @click="infoModalRef?.open('terms')" class="hover:text-black hover:underline cursor-pointer transition-colors">
+              Términos y condiciones
+            </button>
+            <button @click="infoModalRef?.open('privacy')" class="hover:text-black hover:underline cursor-pointer transition-colors">
+              Política de privacidad
+            </button>
+            <button @click="infoModalRef?.open('payments')" class="hover:text-black hover:underline cursor-pointer transition-colors">
+              Medios de Pago & Transbank
+            </button>
+            <button @click="infoModalRef?.open('help')" class="hover:text-black hover:underline cursor-pointer transition-colors">
+              Centro de Ayuda Inacap
+            </button>
           </div>
-          <p>© 2026 Inacap E-Commerce Inc. Desarrollado con Django ORM, PostgreSQL, Transbank Webpay Plus y Vue 3.</p>
+          <p>© 2026 Inacap E-Commerce Inc. Todos los derechos reservados. Tu tienda online segura en Chile.</p>
         </div>
       </div>
     </footer>

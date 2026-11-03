@@ -118,7 +118,7 @@ async function handleSubmit() {
   submitting.value = false
 
   if (result.success) {
-    successMessage.value = '¡Producto publicado con éxito! Imagen convertida automáticamente a 900x600 y <= 1 MB en backend.'
+    successMessage.value = '¡Producto publicado con éxito en el catálogo!'
     setTimeout(() => {
       productStore.closeCreateModal()
       successMessage.value = ''
@@ -142,7 +142,7 @@ async function handleSubmit() {
         <div class="flex items-center gap-2">
           <PlusCircle class="w-5 h-5 text-gray-900" />
           <h2 class="text-sm font-bold text-gray-900">
-            Panel Vendedor: Publicar Producto con Blindaje de Imagen (900x600, &lt;= 1MB)
+            Publicar Nuevo Producto en la Tienda
           </h2>
         </div>
         <button
@@ -158,9 +158,9 @@ async function handleSubmit() {
         <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
           <AlertCircle class="w-6 h-6" />
         </div>
-        <h3 class="text-base font-bold text-gray-900">Acceso Restringido por Rol (UserRol)</h3>
+        <h3 class="text-base font-bold text-gray-900">Acceso Exclusivo para Vendedores</h3>
         <p class="text-xs text-gray-600 max-w-md mx-auto">
-          Para publicar productos, tu cuenta debe poseer el rol asignado de <strong class="text-gray-900">Vendedor</strong> o <strong class="text-gray-900">Administrador</strong>.
+          Para publicar productos, tu cuenta debe contar con perfil de <strong class="text-gray-900">Vendedor</strong> o <strong class="text-gray-900">Administrador</strong>.
         </p>
         <div class="pt-2 flex justify-center gap-3">
           <button
@@ -246,18 +246,18 @@ async function handleSubmit() {
             </div>
           </div>
 
-          <!-- Image Upload with Security Extension and Pillow 900x600 note -->
+          <!-- Image Upload -->
           <div class="bg-blue-50/70 p-3 rounded-md border border-blue-200 space-y-2">
             <div class="flex items-center justify-between">
               <label class="block font-bold text-blue-900">
-                Fotografía del Producto (Conversión 900x600 y &lt;= 1 MB) *
+                Fotografía del Producto *
               </label>
-              <span class="text-[10px] bg-blue-200 text-blue-900 font-bold px-1.5 py-0.5 rounded-xs">
-                Seguridad Pillow
+              <span class="text-[10px] bg-blue-200 text-blue-900 font-bold px-2 py-0.5 rounded-xs">
+                Imagen Oficial
               </span>
             </div>
             <p class="text-[10px] text-blue-800 leading-tight">
-              Sube cualquier imagen (.jpg, .jpeg, .png, .webp). El backend validará la extensión y convertirá la imagen automáticamente a <strong>resolución exacta 900x600</strong> con un peso <strong>máximo de 1 MB</strong>.
+              Sube una fotografía clara y nítida (.jpg, .jpeg, .png, .webp). La imagen se adaptará automáticamente para que luzca perfecta en la tienda.
             </p>
             <input
               type="file"
@@ -271,7 +271,7 @@ async function handleSubmit() {
           <div>
             <div class="flex items-center justify-between mb-1">
               <label class="block font-bold text-gray-700">
-                Características en Formato ADS (+ de 250 caracteres) *
+                Características y Especificaciones del Producto *
               </label>
               <span
                 :class="[isAdsValid ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800']"
@@ -283,17 +283,17 @@ async function handleSubmit() {
             <textarea
               v-model="formData.caracteristicas_ads"
               rows="3"
-              placeholder="Ingresa las especificaciones técnicas completas y comerciales para ADS (obligatorio más de 250 caracteres)..."
+              placeholder="Ingresa las especificaciones técnicas completas y detalles de uso (mínimo 250 caracteres)..."
               required
               :class="[!isAdsValid ? 'border-red-300 focus:ring-red-400' : 'border-gray-300 focus:ring-[#3483FA]']"
               class="w-full p-2.5 rounded-md border focus:outline-none focus:ring-2 font-mono text-[11px]"
             ></textarea>
             <p v-if="!isAdsValid" class="text-[10px] text-red-600 font-semibold mt-0.5">
-              ⚠️ Faltan {{ remainingAdsChars }} caracteres para cumplir la exigencia de más de 250 caracteres.
+              ⚠️ Faltan {{ remainingAdsChars }} caracteres para alcanzar el mínimo requerido de 250 caracteres.
             </p>
             <p v-else class="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
               <CheckCircle2 class="w-3 h-3" />
-              Cumple con el estándar de características ADS (+250 caracteres).
+              Especificaciones completas y listas para publicar.
             </p>
           </div>
 
@@ -339,14 +339,14 @@ async function handleSubmit() {
           </button>
         </form>
 
-        <!-- Right: 900x600 Live Preview Card -->
+        <!-- Right: Live Preview Card -->
         <div class="md:col-span-5 flex flex-col justify-start space-y-3 bg-gray-50/70 p-4 rounded-lg border border-gray-200">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
               <Sparkles class="w-3.5 h-3.5 text-blue-600" />
-              Vista Previa 900x600
+              Vista Previa en Vivo
             </span>
-            <span class="text-[10px] text-gray-500">Resolución Exacta</span>
+            <span class="text-[10px] text-gray-500">Formato Oficial</span>
           </div>
 
           <!-- Preview Card -->
@@ -360,9 +360,6 @@ async function handleSubmit() {
               />
               <div v-if="previewDiscount > 0" class="absolute top-2 left-2 bg-[#00A650] text-white font-bold text-[10px] px-2 py-0.5 rounded-xs">
                 {{ previewDiscount }}% OFF
-              </div>
-              <div class="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded-xs font-mono">
-                900x600
               </div>
             </div>
 
@@ -392,15 +389,15 @@ async function handleSubmit() {
 
               <div class="pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500">
                 <span>Por <strong class="text-gray-700">{{ authStore.intermediateAlias }}</strong></span>
-                <span class="text-emerald-700 font-semibold">UserRol: Vendedor</span>
+                <span class="text-emerald-700 font-semibold">Vendedor Verificado</span>
               </div>
             </div>
           </div>
 
           <div class="text-[10px] text-gray-600 bg-white p-2.5 rounded-md border border-gray-200 space-y-1">
-            <strong class="text-gray-800 block">Seguridad ISO 27001 & Backend:</strong>
+            <strong class="text-gray-800 block">Recomendación para Vender:</strong>
             <p>
-              La imagen se procesa con la librería Pillow en el servidor, blindando el sistema contra scripts maliciosos y garantizando el formato 900x600 y &lt;= 1 MB.
+              Las publicaciones con fotografías nítidas y especificaciones detalladas se venden hasta un 40% más rápido en la plataforma.
             </p>
           </div>
         </div>

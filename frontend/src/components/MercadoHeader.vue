@@ -75,7 +75,7 @@ function handleSellClick() {
         <!-- Right Side: Security Trust Badge -->
         <div class="hidden lg:flex items-center gap-2 text-xs bg-yellow-300/60 px-3 py-1.5 rounded-full text-gray-800 border border-yellow-400/50">
           <ShieldCheck class="w-4 h-4 text-emerald-700" />
-          <span class="font-semibold">ISO/IEC 27001 Certified Security</span>
+          <span class="font-semibold">Certificación de seguridad</span>
         </div>
       </div>
 

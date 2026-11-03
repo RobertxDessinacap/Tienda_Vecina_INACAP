@@ -1,5 +1,5 @@
 <script setup>
-import { ShieldCheck, Lock, EyeOff, UserCheck, Database } from 'lucide-vue-next'
+import { ShieldCheck, Lock, UserCheck, Truck } from 'lucide-vue-next'
 </script>
 
 <template>
@@ -9,10 +9,10 @@ import { ShieldCheck, Lock, EyeOff, UserCheck, Database } from 'lucide-vue-next'
         <ShieldCheck class="w-6 h-6 text-emerald-600" />
         <div>
           <h2 class="text-sm font-bold text-gray-900">
-            Arquitectura de Seguridad & Estándar ISO/IEC 27001
+            Garantías de Compra Segura y Confianza
           </h2>
           <p class="text-[11px] text-gray-500">
-            Garantías de confidencialidad, integridad y disponibilidad aplicadas en Inacap E-Commerce
+            Tus compras protegidas de extremo a extremo con los más altos estándares de calidad
           </p>
         </div>
       </div>
@@ -20,11 +20,11 @@ import { ShieldCheck, Lock, EyeOff, UserCheck, Database } from 'lucide-vue-next'
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
         <!-- Pillar 1 -->
         <div class="flex items-start gap-2.5 p-3 rounded-md bg-gray-50/60 border border-gray-100">
-          <EyeOff class="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+          <Lock class="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <div>
-            <strong class="text-gray-900 block font-bold">Cuenta Intermedia Seudónima</strong>
+            <strong class="text-gray-900 block font-bold">Privacidad y Protección</strong>
             <p class="text-gray-600 text-[11px] mt-0.5 leading-relaxed">
-              Disociación de credenciales reales. Las ventas y compras se operan bajo un Proxy no enumerable, blindando la identidad del usuario.
+              Tus datos personales y de contacto se mantienen siempre confidenciales y resguardados en cada operación.
             </p>
           </div>
         </div>
@@ -33,31 +33,31 @@ import { ShieldCheck, Lock, EyeOff, UserCheck, Database } from 'lucide-vue-next'
         <div class="flex items-start gap-2.5 p-3 rounded-md bg-gray-50/60 border border-gray-100">
           <UserCheck class="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
           <div>
-            <strong class="text-gray-900 block font-bold">Rolificación Estricta (RBAC)</strong>
+            <strong class="text-gray-900 block font-bold">Vendedores Verificados</strong>
             <p class="text-gray-600 text-[11px] mt-0.5 leading-relaxed">
-              Control de acceso granular (Comprador, Vendedor y Admin). Solo cuentas verificadas pueden publicar productos en el catálogo.
+              Publicaciones autorizadas con reputación transparente y seguimiento de entregas a tiempo.
             </p>
           </div>
         </div>
 
         <!-- Pillar 3 -->
         <div class="flex items-start gap-2.5 p-3 rounded-md bg-gray-50/60 border border-gray-100">
-          <Lock class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <ShieldCheck class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <div>
-            <strong class="text-gray-900 block font-bold">Criptografía y Tokens JWT</strong>
+            <strong class="text-gray-900 block font-bold">Pagos 100% Seguros</strong>
             <p class="text-gray-600 text-[11px] mt-0.5 leading-relaxed">
-              Contraseñas cifradas con algoritmos seguros y tokens firmados con caducidad garantizada contra manipulaciones.
+              Procesamiento oficial con Webpay Plus de Transbank y respaldo inmediato con comprobante de pago.
             </p>
           </div>
         </div>
 
         <!-- Pillar 4 -->
         <div class="flex items-start gap-2.5 p-3 rounded-md bg-gray-50/60 border border-gray-100">
-          <Database class="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+          <Truck class="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
           <div>
-            <strong class="text-gray-900 block font-bold">PostgreSQL ORM & Secretos</strong>
+            <strong class="text-gray-900 block font-bold">Garantía de Entrega</strong>
             <p class="text-gray-600 text-[11px] mt-0.5 leading-relaxed">
-              Consultas parametrizadas contra inyecciones SQL y configuración 100% blindada en variables de entorno (.env).
+              Despacho rápido a todo Chile y derecho a devolución gratuita de 30 días si no estás satisfecho.
             </p>
           </div>
         </div>

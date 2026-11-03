@@ -14,7 +14,7 @@ import { ShieldCheck, Truck, CreditCard, Sparkles } from 'lucide-vue-next'
           HASTA 40% OFF Y 12 CUOTAS SIN INTERÉS
         </h1>
         <p class="text-blue-100 text-sm max-w-xl">
-          Explora la mejor tecnología, smartphones y computación con envíos gratis garantizados y la máxima seguridad bajo estándar ISO 27001.
+          Explora la mejor tecnología, smartphones y computación con envíos gratis garantizados y compra protegida.
         </p>
       </div>
 
@@ -37,7 +37,7 @@ import { ShieldCheck, Truck, CreditCard, Sparkles } from 'lucide-vue-next'
         <div class="col-span-2 bg-white/10 backdrop-blur-xs border border-white/20 p-2.5 rounded-lg flex items-center justify-center gap-2 text-center">
           <ShieldCheck class="w-4 h-4 text-emerald-300" />
           <span class="text-xs font-semibold text-emerald-200">
-            Compra Protegida & Identidad Seudónima (ISO 27001)
+            Compra Protegida y Certificación de Seguridad
           </span>
         </div>
       </div>

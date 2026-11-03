@@ -148,10 +148,10 @@ function handleProceedToPayment() {
 
       <!-- Footer & Safe Calculation Checkout -->
       <div v-if="cartStore.hasItems" class="p-4 bg-gray-50 border-t border-gray-200 space-y-3">
-        <!-- Anti-Tampering Security Seal -->
+        <!-- Security Seal -->
         <div class="flex items-center gap-1.5 text-[10px] text-gray-600 bg-emerald-50 border border-emerald-200 p-2 rounded-md">
           <ShieldCheck class="w-4 h-4 text-emerald-700 shrink-0" />
-          <span>Total calculado y blindado en Backend PostgreSQL (Sin manipulación JS).</span>
+          <span>Compra 100% protegida y garantizada a todo Chile.</span>
         </div>
 
         <!-- Breakdown -->

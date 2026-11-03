@@ -65,18 +65,18 @@ function handleBuyNow() {
         <span class="text-gray-800 font-semibold truncate max-w-xs">{{ product.title }}</span>
       </div>
 
-      <!-- Clean URL badge (Requisito del Profesor) -->
-      <div class="hidden sm:flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-200 text-[11px] font-mono">
-        <Sparkles class="w-3.5 h-3.5 text-blue-600" />
-        <span>URL Limpia: /producto/{{ product.slug }}</span>
+      <!-- Clean badge removed for clean MercadoLibre style -->
+      <div class="hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-3 py-1 rounded-full border border-emerald-200 text-xs font-semibold">
+        <ShieldCheck class="w-3.5 h-3.5 text-emerald-600" />
+        <span>Garantía de Compra Protegida</span>
       </div>
     </div>
 
     <!-- Main Product Presentation Card -->
     <div class="bg-white rounded-lg border border-gray-200 shadow-xs p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
-      <!-- Left Column: Product Image (Resolución 900x600 y <= 1MB) -->
+      <!-- Left Column: Product Image -->
       <div class="md:col-span-7 flex flex-col items-center justify-start space-y-3">
-        <!-- 900x600 Aspect Ratio Container -->
+        <!-- Image Container -->
         <div class="w-full aspect-[9/6] bg-gray-50 rounded-lg border border-gray-200 p-4 flex items-center justify-center overflow-hidden shadow-2xs relative">
           <img
             :src="product.display_image_url || product.image_url"
@@ -86,17 +86,14 @@ function handleBuyNow() {
           <div v-if="product.discount_percentage > 0" class="absolute top-3 left-3 bg-[#00A650] text-white font-black text-xs px-2.5 py-1 rounded-xs">
             {{ product.discount_percentage }}% OFF
           </div>
-          <div class="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-xs font-mono">
-            Resolución: 900 x 600
-          </div>
         </div>
 
         <div class="w-full flex items-center justify-between text-xs text-gray-500 bg-gray-50 p-2.5 rounded-md border border-gray-200">
           <span class="flex items-center gap-1">
             <ShieldCheck class="w-4 h-4 text-emerald-600" />
-            Imagen normalizada y blindada contra malware (<= 1MB)
+            Fotografía oficial del producto
           </span>
-          <span class="text-[11px] text-gray-400">Pillow Engine</span>
+          <span class="text-[11px] text-emerald-700 font-semibold">Publicación Verificada</span>
         </div>
       </div>
 
@@ -167,10 +164,10 @@ function handleBuyNow() {
               </span>
             </div>
             <div class="text-gray-800 text-xs font-semibold">
-              Titular: <span class="text-black font-extrabold">{{ product.seller_nombre || 'Rodrigo Morales Vendedor' }}</span>
+              Vendido por: <span class="text-black font-extrabold">{{ product.seller_nombre || 'Rodrigo Morales Vendedor' }}</span>
             </div>
             <div class="text-gray-600 text-[11px]">
-              Cuenta Intermedia Pública (UserProfile): <strong class="text-gray-900">{{ product.seller_alias }}</strong>
+              Tienda oficial: <strong class="text-gray-900">{{ product.seller_alias }}</strong>
             </div>
           </div>
         </div>
@@ -207,10 +204,10 @@ function handleBuyNow() {
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
           <div class="flex items-center gap-2 text-sm font-bold text-gray-900">
             <FileText class="w-4 h-4 text-blue-600" />
-            <span>Características Técnicas y Comerciales en Formato ADS</span>
+            <span>Características Destacadas</span>
           </div>
-          <span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            +250 Caracteres Validados
+          <span class="bg-blue-50 text-blue-800 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border border-blue-200">
+            Especificaciones Oficiales
           </span>
         </div>
         <p class="text-xs text-gray-700 leading-relaxed whitespace-pre-line bg-gray-50/70 p-4 rounded-md border border-gray-200 font-sans">

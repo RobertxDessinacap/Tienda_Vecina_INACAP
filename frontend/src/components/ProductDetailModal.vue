@@ -28,7 +28,7 @@ const installmentValue = computed(() => {
 })
 
 function handleBuy() {
-  alert(`¡Gracias por tu compra simulada de: "${product.value.title}"!\nTransacción protegida por el estándar de seguridad ISO 27001.`)
+  alert(`¡Gracias por tu compra de: "${product.value.title}"!\nTu pedido cuenta con garantía oficial de satisfacción.`)
 }
 </script>
 
@@ -61,7 +61,7 @@ function handleBuy() {
           <!-- Security guarantee seal -->
           <div class="mt-4 flex items-center gap-2 text-xs text-gray-500 bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-2xs">
             <ShieldCheck class="w-4 h-4 text-emerald-600" />
-            <span>Compra Segura y Cifrada - Estándar ISO 27001</span>
+            <span>Compra Segura y Garantizada</span>
           </div>
         </div>
 
@@ -149,7 +149,7 @@ function handleBuy() {
               </span>
             </div>
             <p class="text-[11px] text-gray-600 leading-tight">
-              Identidad protegida mediante Cuenta Intermedia Seudónima (ISO/IEC 27001). Tus datos y los del vendedor se encuentran resguardados.
+              Vendedor verificado con entregas a tiempo y compras 100% protegidas.
             </p>
           </div>
 

@@ -212,11 +212,11 @@ function printVoucher() {
             <span class="font-bold text-gray-900">{{ cartStore.transbankData.buy_order }}</span>
           </div>
           <div class="flex justify-between text-xs">
-            <span class="text-gray-600">Monto Certificado (Backend):</span>
+            <span class="text-gray-600">Monto Total a Pagar:</span>
             <span class="text-base font-extrabold text-gray-900">{{ formatCLP(cartStore.transbankData.total_amount) }}</span>
           </div>
           <div class="flex justify-between text-[11px] text-gray-500">
-            <span>Token de Seguridad:</span>
+            <span>Código de Sesión Webpay:</span>
             <span class="font-mono text-gray-700 truncate max-w-[200px]" :title="cartStore.transbankData.token">
               {{ cartStore.transbankData.token }}
             </span>
@@ -224,11 +224,11 @@ function printVoucher() {
         </div>
 
         <div class="text-[11px] text-gray-600 bg-blue-50 border border-blue-200 p-3 rounded-md space-y-1">
-          <strong class="text-blue-900 block font-bold">Pasos del Flujo Transbank Webpay:</strong>
+          <strong class="text-blue-900 block font-bold">Instrucciones de Pago Webpay Plus:</strong>
           <ol class="list-decimal list-inside space-y-0.5 text-blue-800">
-            <li>El backend crea la transacción en Webpay Plus con el monto asegurado.</li>
-            <li>El usuario confirma su medio de pago (Débito Redcompra o Crédito).</li>
-            <li>Transbank valida y retorna el token al endpoint commit para autorizar el cargo.</li>
+            <li>Selecciona tu tipo de tarjeta (Débito Redcompra o Crédito).</li>
+            <li>Ingresa las coordenadas o clave de tu banco en la pasarela oficial.</li>
+            <li>Transbank autoriza la operación y emite tu comprobante oficial.</li>
           </ol>
         </div>
 
@@ -238,7 +238,7 @@ function printVoucher() {
             :disabled="cartStore.paymentLoading"
             class="w-full bg-[#00A650] hover:bg-emerald-600 text-white font-bold py-2.5 rounded-md text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-2"
           >
-            <span v-if="cartStore.paymentLoading">Autorizando con Transbank...</span>
+            <span v-if="cartStore.paymentLoading">Procesando pago con Transbank...</span>
             <span v-else class="flex items-center gap-1.5">
               <span>Confirmar y Autorizar Pago Webpay</span>
               <CheckCircle2 class="w-4 h-4" />
@@ -263,7 +263,7 @@ function printVoucher() {
           </div>
           <div class="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 font-semibold text-[10px]">
             <ShieldCheck class="w-3.5 h-3.5" />
-            <span>Monto Auditado Backend</span>
+            <span>Página Segura y Verificada</span>
           </div>
         </div>
 
