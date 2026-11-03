@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
+import { useLocationStore } from '../stores/location'
 import {
   Search,
   ShoppingCart,
@@ -19,6 +20,7 @@ import {
 const authStore = useAuthStore()
 const productStore = useProductStore()
 const cartStore = useCartStore()
+const locationStore = useLocationStore()
 
 const localSearch = ref('')
 
@@ -81,14 +83,19 @@ function handleSellClick() {
 
       <!-- Bottom Sub-Row: Location, Navigation Categories, User & Sell Actions -->
       <div class="flex items-center justify-between mt-2 pt-1 text-xs text-gray-800">
-        <!-- Location Picker -->
-        <div class="hidden sm:flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
-          <MapPin class="w-4 h-4 text-gray-700" />
-          <div>
-            <span class="text-[10px] text-gray-600 block leading-none">Enviar a</span>
-            <span class="font-medium text-gray-900 leading-none">Santiago, Chile</span>
+        <!-- Location Picker (Interactive) -->
+        <button
+          type="button"
+          @click="locationStore.openLocationModal()"
+          class="flex items-center gap-1.5 cursor-pointer hover:bg-yellow-400/70 px-2 py-1 rounded transition-all border border-transparent hover:border-yellow-500/40 text-left"
+          title="Cambiar dirección o ciudad de entrega"
+        >
+          <MapPin class="w-4 h-4 text-gray-800 shrink-0" />
+          <div class="leading-tight">
+            <span class="text-[9px] text-gray-700 block">Enviar a</span>
+            <span class="font-bold text-gray-900 truncate max-w-[120px] sm:max-w-[150px] block">{{ locationStore.currentLocation }}</span>
           </div>
-        </div>
+        </button>
 
         <!-- Category Links -->
         <nav class="flex items-center gap-4 text-gray-700 font-normal overflow-x-auto py-1">

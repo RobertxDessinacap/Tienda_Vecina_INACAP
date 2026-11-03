@@ -137,9 +137,9 @@ defineExpose({ open, close })
             <div class="bg-emerald-50/60 p-3.5 rounded-lg border border-emerald-200 flex items-start gap-2.5">
               <ShieldCheck class="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
               <div>
-                <h4 class="font-bold text-emerald-950 mb-0.5">Protección de Identidad y Seudónimos</h4>
+                <h4 class="font-bold text-emerald-950 mb-0.5">Protección de Identidad y Privacidad</h4>
                 <p class="text-emerald-900">
-                  Tu correo electrónico y datos personales nunca son expuestos públicamente en el catálogo ni ante otros usuarios. Toda interacción pública se realiza mediante nombres de tienda o alias seguros.
+                  Tu correo electrónico y datos personales nunca son expuestos públicamente en el catálogo ni ante otros usuarios. Toda interacción pública se realiza mediante nombres de tienda o apodos de usuario.
                 </p>
               </div>
             </div>

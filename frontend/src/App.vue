@@ -11,6 +11,7 @@ import CartDrawer from './components/CartDrawer.vue'
 import PaymentCarouselModal from './components/PaymentCarouselModal.vue'
 import SecurityBadge from './components/SecurityBadge.vue'
 import InfoPagesModal from './components/InfoPagesModal.vue'
+import LocationModal from './components/LocationModal.vue'
 import { useProductStore } from './stores/products'
 import { useAuthStore } from './stores/auth'
 import {
@@ -163,6 +164,7 @@ onMounted(async () => {
     <CreateProductModal />
     <AuthModal />
     <InfoPagesModal ref="infoModalRef" />
+    <LocationModal />
 
     <!-- MercadoLibre Clean Footer -->
     <footer class="bg-white border-t border-gray-200/90 text-gray-600 text-xs py-8 mt-12">

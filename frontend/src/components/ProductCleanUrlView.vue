@@ -16,9 +16,11 @@ import {
 } from 'lucide-vue-next'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
+import { useLocationStore } from '../stores/location'
 
 const productStore = useProductStore()
 const cartStore = useCartStore()
+const locationStore = useLocationStore()
 
 const product = computed(() => productStore.selectedProduct)
 
@@ -139,8 +141,13 @@ function handleBuyNow() {
             <div class="flex items-start gap-2">
               <Truck class="w-4 h-4 text-[#00A650] shrink-0 mt-0.5" />
               <div>
-                <span class="font-bold text-[#00A650]">Llega gratis mañana a todo Chile</span>
-                <p class="text-gray-500 text-[11px]">Despachado a través de Mercado Envíos</p>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-bold text-[#00A650]">Llega gratis mañana a {{ locationStore.currentLocation }}</span>
+                  <button @click="locationStore.openLocationModal()" class="text-[10px] text-blue-600 hover:underline cursor-pointer font-medium">
+                    (Cambiar)
+                  </button>
+                </div>
+                <p class="text-gray-500 text-[11px]">Despachado a través de Mercado Envíos Express</p>
               </div>
             </div>
             <div class="flex items-start gap-2">
