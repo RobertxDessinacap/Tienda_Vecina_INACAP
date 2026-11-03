@@ -1,95 +1,158 @@
-# Inacap E-Commerce (Django + PostgreSQL + Vue 3)
+# Inacap E-Commerce 🛒🇨🇱
 
-Plataforma de comercio electrónico de alta seguridad desarrollada bajo estándares de programación segura y controles **ISO/IEC 27001**, con arquitectura desacoplada y estética visual inspirada en **MercadoLibre**.
+Plataforma de comercio electrónico moderna, segura y de alto rendimiento diseñada con la estética limpia y amigable de MercadoLibre / Mercado Pago. Desarrollada con **Django** (PostgreSQL ORM) en el Backend y **Vue 3** (Vite + Tailwind CSS + Pinia) en el Frontend.
 
----
-
-## 🚀 Arquitectura Tecnológica
-
-- **Backend:** Django 6 con Django REST Framework (DRF) y `django-cors-headers`.
-- **Base de Datos:** PostgreSQL con ORM Django (driver nativo de alto rendimiento `psycopg 3`).
-- **Frontend:** Vue 3 (Composition API `<script setup>`), Vite 8, Pinia, Tailwind CSS y Lucide Icons.
-- **Seguridad ISO 27001:**
-  - **Patrón de Cuenta Intermedia (Intermediate Account / Surrogate Identity):** Las publicaciones de productos y compras se asocian exclusivamente a un `AccountProxy` público con seudónimo, garantizando la disociación completa de las credenciales confidenciales del usuario (`UserCredential`) y datos sensibles (`UserProfileSensitive`).
-  - **Rolificación (RBAC):** Roles granulares (`ADMIN`, `SELLER`, `BUYER`). Solo `SELLER` y `ADMIN` pueden publicar productos.
-  - **Blindaje de Secretos:** 100% de la configuración y claves residen en `.env` (ignorado en Git mediante `.gitignore`).
-  - **Cabeceras de Seguridad:** CSP, X-Frame-Options DENY, X-Content-Type nosniff y logging de auditoría.
+El proyecto incorpora una arquitectura de desacoplamiento de usuarios (`Userdjango` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona` y `ROL -> UserRol`), procesamiento y blindaje de imágenes a 900x600 ($\le$ 1 MB), validador ADS de más de 250 caracteres, cálculo de carrito 100% en servidor (anti-manipulación JS), pasarela de pagos integrada con **Transbank Webpay Plus**, selector dinámico de ubicación de despacho para Chile, protección de doble capa contra ataques **XSS (Cross-Site Scripting)** y aislamiento total de secretos en variables de entorno `.env`.
 
 ---
 
-## 👥 Cuentas de Demostración Preconfiguradas
-
-| Rol | Correo Electrónico | Contraseña | Cuenta Intermedia (Alias Público) | Permisos |
-| :--- | :--- | :--- | :--- | :--- |
-| **Vendedor** | `vendedor@inacap.cl` | `Vendedor1234!` | `TechChile_Plaza` | Ver catálogo + Publicar productos |
-| **Comprador** | `comprador@inacap.cl` | `Comprador1234!` | `Cliente_Estudiante_Inacap` | Ver catálogo + Comprar + Perfil |
-| **Administrador** | `admin@inacap.cl` | `Admin1234!` | `Inacap_Oficial_Store` | Control total + Publicar + Auditoría |
-
-> *Nota:* En la ventana de inicio de sesión del frontend se incluyen botones de llenado rápido de 1 clic para alternar entre roles instantáneamente.
+## 📑 Documentación Técnica
+- 📖 [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md): Documento técnico integral indexado (Arquitectura de identidades, reglas de negocio, blindaje de imágenes, prevención OWASP Anti-XSS y matriz de mitigaciones).
+- 💳 [GUIA_TRANSBANK_WEBPAY.md](GUIA_TRANSBANK_WEBPAY.md): Guía paso a paso para programar e integrar la pasarela oficial Webpay Plus de Transbank.
 
 ---
 
-## 🛠️ Puesta en Marcha
+## ⚙️ Requisitos Previos
 
-### 1. Iniciar el Backend (Django)
+Antes de comenzar, asegúrate de tener instalado en tu sistema:
+- **Python 3.11+** (probado y compatible con Python 3.14).
+- **Node.js 18+** y **npm 9+**.
+- **PostgreSQL 14+** (Opcional: el sistema incluye un mecanismo de detección de puerto con fallback transparente a SQLite local para levantar inmediatamente sin configurar base de datos).
+- **Git**.
+
+---
+
+## 🚀 Guía de Instalación y Puesta en Marcha
+
+### 1. Clonar el Repositorio
+```bash
+git clone https://github.com/RobertxDessinacap/inacap-ecommerce.git
+cd inacap-ecommerce
+```
+
+---
+
+### 2. Puesta en Marcha del Backend (Django API)
+
+Abre una terminal en la carpeta raíz del proyecto:
 
 ```powershell
-cd "C:\Users\Rober\inacap e-commerce\backend"
+# 1. Entrar a la carpeta backend
+cd backend
 
-# Activar entorno virtual
-.\.venv\Scripts\Activate.ps1
+# 2. Crear entorno virtual de Python
+python -m venv .venv
 
-# (Opcional) Ejecutar tests de seguridad y autorización
-python manage.py test apps.accounts apps.products
+# 3. Activar el entorno virtual
+# En Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+# En Windows (CMD):
+.venv\Scripts\activate.bat
+# En Linux / macOS:
+source .venv/bin/activate
 
-# Iniciar servidor backend en el puerto 8000
+# 4. Instalar dependencias requeridas
+pip install -r requirements.txt
+
+# 5. Crear archivo de entorno .env a partir de la plantilla
+# En Windows (PowerShell):
+Copy-Item .env.example .env
+# En Linux / macOS:
+cp .env.example .env
+
+# 6. Ejecutar migraciones de base de datos
+python manage.py migrate
+
+# 7. Poblar datos iniciales (Roles, Cuentas Demo, Categorías y Productos)
+python manage.py seed_ecommerce
+
+# 8. Iniciar el servidor de desarrollo
 python manage.py runserver 127.0.0.1:8000
 ```
 
-El backend quedará escuchando en `http://127.0.0.1:8000`.
+> **Nota de Base de Datos:** Si tienes PostgreSQL activo en el puerto `5432` con la base de datos `inacap_ecommerce`, el sistema se conectará de inmediato a través de `psycopg 3`. Si no está disponible en tu máquina, el sistema activará de forma automática y transparente SQLite para que puedas probar todo sin trabas.
 
-### 2. Iniciar el Frontend (Vue 3 + Vite)
+El Backend quedará escuchando en: **`http://127.0.0.1:8000/api/v1/`**
 
-En una nueva terminal:
+---
 
-```powershell
-cd "C:\Users\Rober\inacap e-commerce\frontend"
+### 3. Puesta en Marcha del Frontend (Vue 3 + Vite)
 
-# Iniciar servidor de desarrollo Vite
+Abre **otra terminal** (manteniendo el backend activo) en la carpeta raíz del proyecto:
+
+```bash
+# 1. Entrar a la carpeta frontend
+cd frontend
+
+# 2. Instalar dependencias de Node
+npm install
+
+# 3. Iniciar el servidor de desarrollo Vite
 npm run dev
 ```
 
-Abre en tu navegador: **`http://localhost:5173`**
+El Frontend se iniciará de inmediato en: **`http://localhost:5173`**
 
 ---
 
-## 🐘 Conexión con PostgreSQL
+## 👥 Cuentas de Acceso de Demostración
 
-El archivo `backend/.env` viene preparado para conectarse a tu instancia local de PostgreSQL:
+El comando `seed_ecommerce` deja precargadas 3 cuentas listas para probar las diferentes rolificaciones:
 
-```env
-DB_ENGINE=django.db.backends.postgresql
-DB_NAME=inacap_ecommerce
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=127.0.0.1
-DB_PORT=5432
+| Rol | Correo Electrónico | Contraseña | Permisos |
+| :--- | :--- | :--- | :--- |
+| **Administrador** | `admin@inacap.cl` | `Admin1234!` | Control total, catálogo y gestión |
+| **Vendedor** | `vendedor@inacap.cl` | `Vendedor1234!` | Publicación de productos con ADS (+250 car.), fotos e inventario |
+| **Comprador** | `comprador@inacap.cl` | `Comprador1234!` | Exploración, carrito seguro y checkout Transbank |
+
+> **Acceso Rápido:** Dentro de la ventana de inicio de sesión, puedes hacer clic en los botones de prueba rápida (*"Demo Vendedor"*, *"Demo Comprador"*, *"Demo Admin"*) para autocompletar credenciales al instante.
+
+---
+
+## 💳 Pruebas de Pago con Transbank Webpay Plus
+
+Para simular una compra real mediante la pasarela oficial Webpay Plus:
+1. Agrega cualquier producto al carrito de compras.
+2. Abre el carrito y selecciona **Transbank Webpay Plus** en el carrusel de medios de pago.
+3. Presiona **Continuar al Pago Seguro**.
+4. En el entorno de integración oficial de Transbank, utiliza los datos de prueba:
+   - **Tarjeta de Débito (Redcompra):** Cualquier número terminado en `6623` (ej: `6623`).
+   - **Clave Webpay:** `1213`.
+5. Al autorizarse el pago, el backend descontará el stock automáticamente en la base de datos y emitirá el voucher oficial imprimible con código de autorización.
+
+---
+
+## 🧪 Ejecución de Pruebas Automatizadas
+
+El proyecto incluye pruebas unitarias que validan la arquitectura del docente y los estándares de seguridad:
+
+```powershell
+cd backend
+python manage.py test apps.accounts apps.products apps.payments
 ```
 
-- Si tu servicio PostgreSQL local está activo en el puerto `5432`, Django se conectará automáticamente mediante el driver `psycopg`.
-- Si el servicio no está corriendo aún en tu máquina, Django activa un fallback transparente para que puedas desarrollar y probar la interfaz sin interrupciones.
-- Para aplicar migraciones en tu PostgreSQL una vez iniciado el servicio:
-  ```powershell
-  python manage.py migrate
-  python manage.py seed_ecommerce
-  ```
+**Cobertura de Pruebas (8/8 Exitosas):**
+1. `test_user_profile_between_user_and_persona`: Validación del desacoplamiento `User` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona`.
+2. `test_seller_role_assignment`: Validación de asignación estricta de roles (`ROL -> UserRol`).
+3. `test_caracteristicas_ads_min_length_validation`: Rechazo de especificaciones con $\le 250$ caracteres.
+4. `test_seller_creates_product_with_valid_ads_and_clean_url`: Generación de URL limpia y exposición del nombre del vendedor.
+5. `test_safe_cart_calculation_anti_tampering`: Verificación de cálculo inviolable de totales en el servidor.
+6. `test_transbank_init_and_commit_flow`: Flujo de inicialización y confirmación de Webpay Plus.
+7. `test_xss_payload_rejected_in_product_creation`: Detección y bloqueo de scripts y caracteres especiales prohibidos (`[`, `]`, `{`, `}`, `*`, `<`, `>`).
+8. `test_search_endpoint_sanitizes_xss_and_brackets`: Sanitización segura de parámetros de búsqueda sin colapso.
 
 ---
 
-## 🔒 Control de Versiones Git
+## 📦 Compilación para Producción (Frontend)
 
-El proyecto ha sido inicializado con Git (`git init`) y cuenta con un `.gitignore` integral que excluye:
-- `.env` y archivos con credenciales o claves privadas.
-- `.venv/` y directorios de entorno virtual de Python.
-- `node_modules/` y artefactos de compilación `dist/`.
-- Archivos temporales de caché `__pycache__` y bases de datos locales.
+Para generar el paquete optimizado de distribución:
+```bash
+cd frontend
+npm run build
+```
+Los archivos estáticos optimizados se generarán en `frontend/dist/`.
+
+---
+
+## 📄 Licencia
+Proyecto desarrollado para fines académicos y de evaluación de comercio electrónico seguro bajo estándares ISO 27001 y OWASP Top 10.
