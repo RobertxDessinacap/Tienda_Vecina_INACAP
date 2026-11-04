@@ -1,7 +1,7 @@
 from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Min, Max
 from django.utils.html import escape
 import uuid
 import re
@@ -40,7 +40,6 @@ class ProductListCreateView(APIView):
         search_query = request.query_params.get('q', '').strip()
         if search_query:
             # Sanitización rigurosa anti-XSS e inyección de caracteres (OWASP)
-            # Purga caracteres especiales peligrosos como [ } * < > \ ; ^ $ ~ | `
             clean_search = re.sub(r'[<>{}\[\]*\\;^$|~`]', '', search_query).strip()
             if clean_search:
                 queryset = queryset.filter(
@@ -56,6 +55,24 @@ class ProductListCreateView(APIView):
                 Q(category__slug=category_param) | Q(category__id__iexact=category_param)
             )
 
+        min_price = request.query_params.get('min_price')
+        if min_price:
+            try:
+                queryset = queryset.filter(price__gte=float(min_price))
+            except (ValueError, TypeError):
+                pass
+
+        max_price = request.query_params.get('max_price')
+        if max_price:
+            try:
+                queryset = queryset.filter(price__lte=float(max_price))
+            except (ValueError, TypeError):
+                pass
+
+        free_shipping = request.query_params.get('free_shipping')
+        if free_shipping in ('true', '1', 'True'):
+            queryset = queryset.filter(free_shipping=True)
+
         ordering = request.query_params.get('ordering', '-created_at')
         if ordering == 'price_asc':
             queryset = queryset.order_by('price')
@@ -66,10 +83,20 @@ class ProductListCreateView(APIView):
         else:
             queryset = queryset.order_by('-created_at')
 
+        # Rangos globales de precio para sliders de filtrado
+        price_bounds = Product.objects.aggregate(
+            min_catalog_price=Min('price'),
+            max_catalog_price=Max('price')
+        )
+
         serializer = ProductSerializer(queryset, many=True)
         return Response({
             "status": "success",
             "count": queryset.count(),
+            "price_bounds": {
+                "min": float(price_bounds['min_catalog_price'] or 0),
+                "max": float(price_bounds['max_catalog_price'] or 2500000)
+            },
             "data": serializer.data
         })
 

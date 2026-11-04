@@ -38,8 +38,8 @@ const paymentMethods = [
     badge: 'Hasta 6 cuotas',
     tagline: 'Dinero en cuenta Mercado Pago y billetera digital',
     icon: Wallet,
-    accent: 'border-blue-500 bg-blue-50/40 text-blue-700',
-    headerBg: 'bg-gradient-to-r from-sky-500 to-blue-600 text-white',
+    accent: 'border-sky-500 bg-sky-50/40 text-sky-700',
+    headerBg: 'bg-gradient-to-r from-sky-400 to-sky-600 text-white',
     benefits: ['Protección al comprador', 'Paga con 1 clic', 'Tarjetas guardadas'],
   },
   {
@@ -111,22 +111,22 @@ function printVoucher() {
 <template>
   <div
     v-if="cartStore.paymentModalOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-2xs overflow-y-auto"
+    class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto"
   >
     <div
-      class="bg-white rounded-lg shadow-2xl max-w-xl w-full overflow-hidden border border-gray-200 relative animate-in fade-in zoom-in-95 duration-200 my-auto text-xs"
+      class="bg-brand-surface rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-brand-border relative animate-in fade-in zoom-in-95 duration-200 my-auto text-xs"
     >
       <!-- Modal Header -->
-      <div class="bg-[#FFE600] px-5 py-3.5 flex items-center justify-between border-b border-yellow-400">
+      <div class="bg-brand-primary px-5 py-3.5 flex items-center justify-between border-b border-brand-primary-border">
         <div class="flex items-center gap-2">
-          <CreditCard class="w-5 h-5 text-gray-900" />
-          <h2 class="text-sm font-bold text-gray-900">
+          <CreditCard class="w-5 h-5 text-brand-primary-text" />
+          <h2 class="text-sm font-bold text-slate-900">
             Carrusel de Medios de Pago & Transbank
           </h2>
         </div>
         <button
           @click="cartStore.closePaymentModal"
-          class="w-7 h-7 rounded-full bg-white/80 hover:bg-white flex items-center justify-center text-gray-700 transition-colors"
+          class="w-7 h-7 rounded-full bg-brand-surface/80 hover:bg-brand-surface flex items-center justify-center text-slate-700 transition-colors"
         >
           <X class="w-4 h-4" />
         </button>
@@ -141,54 +141,50 @@ function printVoucher() {
           <span class="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-1">
             Transacción Autorizada con Éxito
           </span>
-          <h3 class="text-lg font-bold text-gray-900">¡Pago Confirmado por Transbank!</h3>
-          <p class="text-gray-500 text-xs">Tu orden de compra ha sido procesada de forma segura.</p>
+          <h3 class="text-lg font-bold text-slate-900">¡Pago Confirmado por Transbank!</h3>
+          <p class="text-slate-500 text-xs">Tu orden de compra ha sido procesada de forma segura.</p>
         </div>
 
-        <!-- Voucher Card -->
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left font-mono space-y-2 text-[11px] shadow-2xs">
-          <div class="flex justify-between pb-2 border-b border-gray-200">
-            <span class="text-gray-500">Comercio:</span>
-            <span class="font-bold text-gray-800">INACAP E-COMMERCE CHILE</span>
+        <!-- Voucher Details -->
+        <div class="bg-brand-surface-subtle p-4 rounded-xl border border-brand-border text-left space-y-2 text-xs">
+          <div class="flex justify-between border-b border-brand-border pb-1.5">
+            <span class="text-slate-500">Orden de Compra:</span>
+            <span class="font-mono font-bold text-slate-800">{{ cartStore.paymentVoucher.buy_order }}</span>
+          </div>
+          <div class="flex justify-between border-b border-brand-border pb-1.5">
+            <span class="text-slate-500">Código Autorización:</span>
+            <span class="font-mono font-bold text-emerald-600">{{ cartStore.paymentVoucher.authorization_code }}</span>
+          </div>
+          <div class="flex justify-between border-b border-brand-border pb-1.5">
+            <span class="text-slate-500">Medio de Pago:</span>
+            <span class="font-semibold text-slate-800">Transbank Webpay Plus (Redcompra Débito)</span>
+          </div>
+          <div class="flex justify-between border-b border-brand-border pb-1.5">
+            <span class="text-slate-500">Tarjeta Utilizada:</span>
+            <span class="font-mono text-slate-800">•••• •••• •••• {{ cartStore.paymentVoucher.card_number || '6623' }}</span>
+          </div>
+          <div class="flex justify-between border-b border-brand-border pb-1.5">
+            <span class="text-slate-500">Monto Transaccionado:</span>
+            <span class="text-base font-bold text-slate-900">{{ formatCLP(cartStore.paymentVoucher.amount) }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-gray-500">Orden de Compra:</span>
-            <span class="font-bold text-gray-900">{{ cartStore.paymentVoucher.buy_order }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">Código de Autorización:</span>
-            <span class="font-bold text-emerald-700">{{ cartStore.paymentVoucher.authorization_code }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">Monto Aprobado:</span>
-            <span class="font-bold text-gray-900">{{ formatCLP(cartStore.paymentVoucher.amount) }} CLP</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">Tarjeta Utilizada:</span>
-            <span class="font-semibold text-gray-800">**** **** **** {{ cartStore.paymentVoucher.card_last_digits }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">Tipo de Pago:</span>
-            <span class="font-semibold text-gray-800">{{ cartStore.paymentVoucher.payment_type }}</span>
-          </div>
-          <div class="flex justify-between pt-2 border-t border-gray-200 text-[10px] text-gray-400">
-            <span>Fecha y Hora:</span>
-            <span>{{ new Date(cartStore.paymentVoucher.timestamp).toLocaleString('es-CL') }}</span>
+            <span class="text-slate-500">Estado de Operación:</span>
+            <span class="text-emerald-700 font-bold uppercase">{{ cartStore.paymentVoucher.status }}</span>
           </div>
         </div>
 
-        <!-- Actions -->
+        <!-- Buttons -->
         <div class="flex gap-2 pt-2">
           <button
             @click="printVoucher"
-            class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-md transition-colors flex items-center justify-center gap-1.5"
+            class="flex-1 bg-brand-surface-subtle hover:bg-brand-primary-subtle text-brand-primary-text font-semibold py-2 rounded-lg border border-brand-border flex items-center justify-center gap-1.5 transition-colors"
           >
             <Printer class="w-4 h-4" />
             <span>Imprimir Comprobante</span>
           </button>
           <button
             @click="cartStore.closePaymentModal(); productStore.goToCatalog()"
-            class="flex-1 bg-[#3483FA] hover:bg-blue-600 text-white font-bold py-2 rounded-md transition-colors"
+            class="flex-1 bg-brand-accent hover:bg-brand-accent-hover text-white font-bold py-2 rounded-lg transition-colors"
           >
             Volver a la Tienda
           </button>
@@ -198,7 +194,7 @@ function printVoucher() {
       <!-- ================= PANTALLA OFICIAL TRANSBANK EN CURSO ================= -->
       <div v-else-if="cartStore.transbankData" class="p-6 space-y-4">
         <!-- Transbank Official Header -->
-        <div class="bg-red-600 text-white p-4 rounded-lg flex items-center justify-between shadow-xs">
+        <div class="bg-red-600 text-white p-4 rounded-xl flex items-center justify-between shadow-xs">
           <div>
             <div class="text-[10px] uppercase font-bold tracking-wider text-red-200">Plataforma Oficial</div>
             <h3 class="text-base font-extrabold tracking-tight">Transbank Webpay Plus</h3>
@@ -206,114 +202,120 @@ function printVoucher() {
           <Lock class="w-6 h-6 text-red-200" />
         </div>
 
-        <div class="bg-gray-50 p-3.5 rounded-lg border border-gray-200 space-y-2">
+        <div class="bg-brand-surface-subtle p-3.5 rounded-xl border border-brand-border space-y-2">
           <div class="flex justify-between text-xs">
-            <span class="text-gray-600">Orden de Compra:</span>
-            <span class="font-bold text-gray-900">{{ cartStore.transbankData.buy_order }}</span>
+            <span class="text-slate-500">Orden de Compra:</span>
+            <span class="font-mono font-bold text-slate-800">{{ cartStore.transbankData.buy_order }}</span>
           </div>
           <div class="flex justify-between text-xs">
-            <span class="text-gray-600">Monto Total a Pagar:</span>
-            <span class="text-base font-extrabold text-gray-900">{{ formatCLP(cartStore.transbankData.total_amount) }}</span>
-          </div>
-          <div class="flex justify-between text-[11px] text-gray-500">
-            <span>Código de Sesión Webpay:</span>
-            <span class="font-mono text-gray-700 truncate max-w-[200px]" :title="cartStore.transbankData.token">
-              {{ cartStore.transbankData.token }}
-            </span>
+            <span class="text-slate-500">Monto a Pagar:</span>
+            <span class="text-base font-bold text-slate-900">{{ formatCLP(cartStore.transbankData.amount) }}</span>
           </div>
         </div>
 
-        <div class="text-[11px] text-gray-600 bg-blue-50 border border-blue-200 p-3 rounded-md space-y-1">
-          <strong class="text-blue-900 block font-bold">Instrucciones de Pago Webpay Plus:</strong>
-          <ol class="list-decimal list-inside space-y-0.5 text-blue-800">
-            <li>Selecciona tu tipo de tarjeta (Débito Redcompra o Crédito).</li>
-            <li>Ingresa las coordenadas o clave de tu banco en la pasarela oficial.</li>
-            <li>Transbank autoriza la operación y emite tu comprobante oficial.</li>
-          </ol>
-        </div>
+        <!-- Simulated Webpay payment interactive form -->
+        <div class="border border-brand-border rounded-xl p-4 bg-brand-surface space-y-3">
+          <span class="text-xs font-bold text-slate-800 block">Simulador Oficial de Pago Seguro Webpay Plus</span>
+          <p class="text-[11px] text-slate-500">
+            Ingresa los datos de tu tarjeta de prueba para completar la transacción:
+          </p>
+          <div class="space-y-2">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Número de Tarjeta de Débito (Redcompra)</label>
+              <input
+                type="text"
+                value="•••• •••• •••• 6623 (Débito Aprobada)"
+                readonly
+                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Clave de Seguridad Webpay</label>
+              <input
+                type="password"
+                value="1213"
+                readonly
+                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono"
+              />
+            </div>
+          </div>
 
-        <div class="space-y-2 pt-2">
           <button
             @click="handleCommitTransbank"
             :disabled="cartStore.paymentLoading"
-            class="w-full bg-[#00A650] hover:bg-emerald-600 text-white font-bold py-2.5 rounded-md text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-2"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-1.5"
           >
-            <span v-if="cartStore.paymentLoading">Procesando pago con Transbank...</span>
+            <span v-if="cartStore.paymentLoading">Autorizando con el Banco emisor...</span>
             <span v-else class="flex items-center gap-1.5">
-              <span>Confirmar y Autorizar Pago Webpay</span>
               <CheckCircle2 class="w-4 h-4" />
+              <span>Pagar y Autorizar Transacción Transbank</span>
             </span>
-          </button>
-          <button
-            @click="cartStore.transbankData = null"
-            class="w-full text-gray-500 hover:text-gray-700 text-xs py-1"
-          >
-            Cancelar y volver a seleccionar medio de pago
           </button>
         </div>
       </div>
 
       <!-- ================= CARRUSEL DE MEDIOS DE PAGO ================= -->
       <div v-else class="p-5 space-y-4">
-        <!-- Total to Pay -->
-        <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+        <!-- Order Summary Top -->
+        <div class="flex items-center justify-between bg-brand-surface-subtle p-3 rounded-xl border border-brand-border">
           <div>
-            <span class="text-gray-500 text-[11px] block">Total a pagar:</span>
-            <span class="text-xl font-black text-gray-900">{{ totalAmountFormatted }}</span>
+            <span class="text-slate-500 block text-[11px]">Total a Pagar (Cálculo Inviolable ORM):</span>
+            <span class="text-base font-extrabold text-slate-900">{{ totalAmountFormatted }}</span>
           </div>
-          <div class="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 font-semibold text-[10px]">
-            <ShieldCheck class="w-3.5 h-3.5" />
-            <span>Página Segura y Verificada</span>
+          <div class="flex items-center gap-1 text-[11px] text-emerald-700 font-bold bg-brand-surface px-2.5 py-1 rounded-full border border-brand-border shadow-2xs">
+            <ShieldCheck class="w-3.5 h-3.5 text-emerald-600" />
+            <span>Sin Recargos Ocultos</span>
           </div>
         </div>
 
-        <!-- Carousel Container with Arrows -->
+        <!-- Carousel Presentation Slider -->
         <div class="relative">
-          <div class="text-center mb-2">
-            <span class="text-[11px] font-bold text-gray-600 uppercase tracking-wider">
-              Desliza y selecciona tu opción de pago:
-            </span>
-          </div>
-
-          <!-- Carousel Card Display -->
+          <!-- Card Carousel Slide -->
           <div
-            :class="[selectedMethod.accent]"
-            class="rounded-xl border-2 p-5 shadow-xs transition-all duration-300 relative overflow-hidden"
+            :class="selectedMethod.accent"
+            class="rounded-xl border-2 p-5 transition-all duration-300 shadow-xs relative overflow-hidden"
           >
+            <!-- Badge -->
             <div class="flex items-center justify-between mb-3">
-              <span class="bg-white/90 font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-white/80 shadow-2xs">
                 {{ selectedMethod.badge }}
               </span>
-              <component :is="selectedMethod.icon" class="w-6 h-6" />
+              <span class="text-[11px] font-semibold opacity-75">
+                Opción {{ activeIndex + 1 }} de {{ paymentMethods.length }}
+              </span>
             </div>
 
-            <h3 class="text-base font-bold text-gray-900 mb-1">
-              {{ selectedMethod.name }}
-            </h3>
-            <p class="text-gray-600 text-xs mb-3 leading-relaxed">
-              {{ selectedMethod.tagline }}
-            </p>
+            <!-- Title & Icon -->
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-10 h-10 rounded-lg bg-white shadow-xs flex items-center justify-center">
+                <component :is="selectedMethod.icon" class="w-5 h-5" />
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-900">{{ selectedMethod.name }}</h4>
+                <p class="text-[11px] opacity-90 leading-tight">{{ selectedMethod.tagline }}</p>
+              </div>
+            </div>
 
-            <!-- Benefits list -->
-            <ul class="space-y-1 text-[11px] text-gray-700 border-t border-gray-200/80 pt-3">
-              <li v-for="b in selectedMethod.benefits" :key="b" class="flex items-center gap-1.5">
-                <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>{{ b }}</span>
+            <!-- Benefits List -->
+            <ul class="mt-3 space-y-1.5 pt-3 border-t border-current/20 text-[11px]">
+              <li v-for="(benefit, bIdx) in selectedMethod.benefits" :key="bIdx" class="flex items-center gap-1.5">
+                <CheckCircle2 class="w-3.5 h-3.5 shrink-0 opacity-80" />
+                <span>{{ benefit }}</span>
               </li>
             </ul>
           </div>
 
-          <!-- Carousel Navigation Arrows -->
+          <!-- Navigation Arrow Buttons -->
           <button
             @click="prevMethod"
-            class="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-700 shadow-md border border-gray-200 flex items-center justify-center transition-all"
+            class="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-surface/90 hover:bg-brand-surface text-slate-700 shadow-md border border-brand-border flex items-center justify-center transition-all"
             title="Anterior"
           >
             <ChevronLeft class="w-4 h-4" />
           </button>
           <button
             @click="nextMethod"
-            class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-700 shadow-md border border-gray-200 flex items-center justify-center transition-all"
+            class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-surface/90 hover:bg-brand-surface text-slate-700 shadow-md border border-brand-border flex items-center justify-center transition-all"
             title="Siguiente"
           >
             <ChevronRight class="w-4 h-4" />
@@ -326,7 +328,7 @@ function printVoucher() {
             v-for="(method, idx) in paymentMethods"
             :key="method.id"
             @click="selectMethod(idx)"
-            :class="[activeIndex === idx ? 'w-6 bg-[#3483FA]' : 'w-2 bg-gray-300 hover:bg-gray-400']"
+            :class="[activeIndex === idx ? 'w-6 bg-brand-accent' : 'w-2 bg-brand-primary-border hover:bg-brand-primary-hover']"
             class="h-2 rounded-full transition-all"
             :title="method.name"
           ></button>
@@ -337,7 +339,7 @@ function printVoucher() {
           <button
             @click="handleInitTransbank"
             :disabled="cartStore.paymentLoading"
-            class="w-full bg-[#3483FA] hover:bg-[#2968C8] text-white font-bold py-2.5 rounded-md text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-2"
+            class="w-full bg-brand-accent hover:bg-brand-accent-hover text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-2"
           >
             <span v-if="cartStore.paymentLoading">Conectando con pasarela...</span>
             <span v-else class="flex items-center gap-1.5">
