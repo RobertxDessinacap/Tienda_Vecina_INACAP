@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
+from apps.accounts.models import UserCredential, Rol, UserRol
 from apps.accounts.serializers import (
     UserRegistrationSerializer,
     LoginSerializer,
@@ -65,4 +66,37 @@ class MeAPIView(APIView):
         return Response({
             "status": "success",
             "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class UpgradeToSellerAPIView(APIView):
+    """Permite a un comprador autenticado ascender su cuenta al rol de Vendedor."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user.role = UserCredential.ROLE_SELLER
+        user.save(update_fields=['role', 'updated_at'])
+
+        rol_seller, _ = Rol.objects.get_or_create(
+            codigo='SELLER',
+            defaults={'nombre': 'Vendedor Autorizado', 'descripcion': 'Permiso para publicar y vender productos'}
+        )
+        UserRol.objects.get_or_create(
+            user_profile=user.user_profile,
+            rol=rol_seller,
+            defaults={'activo': True}
+        )
+        user.user_profile.is_verified_seller = True
+        user.user_profile.save(update_fields=['is_verified_seller'])
+
+        return Response({
+            "status": "success",
+            "message": "¡Tu cuenta ahora tiene rol de Vendedor! Ya puedes publicar tus productos.",
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "role": user.role,
+                "user_profile": UserProfileSerializer(user.user_profile).data
+            }
         }, status=status.HTTP_200_OK)

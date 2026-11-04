@@ -8,14 +8,42 @@ export const useProductStore = defineStore('products', {
     selectedProduct: null,
     detailModalOpen: false,
     createModalOpen: false,
+    filterModalOpen: false,
     loading: false,
     error: null,
     activeCategory: null,
     searchQuery: '',
     ordering: '-created_at',
+    minPrice: null,
+    maxPrice: null,
+    onlyFreeShipping: false,
+    priceBounds: {
+      min: 30000,
+      max: 2100000,
+    },
     activeView: 'catalog', // 'catalog' | 'product_page'
     activeProductSlug: null,
   }),
+
+  getters: {
+    hasActiveFilters(state) {
+      return (
+        state.minPrice !== null ||
+        state.maxPrice !== null ||
+        state.onlyFreeShipping ||
+        state.activeCategory !== null ||
+        (state.searchQuery && state.searchQuery.trim().length > 0)
+      )
+    },
+    activeFiltersCount(state) {
+      let count = 0
+      if (state.minPrice !== null || state.maxPrice !== null) count++
+      if (state.onlyFreeShipping) count++
+      if (state.activeCategory !== null) count++
+      if (state.searchQuery && state.searchQuery.trim().length > 0) count++
+      return count
+    },
+  },
 
   actions: {
     async fetchCategories() {
@@ -32,8 +60,8 @@ export const useProductStore = defineStore('products', {
       this.error = null
       try {
         const params = {}
-        if (this.searchQuery) {
-          params.q = this.searchQuery
+        if (this.searchQuery && this.searchQuery.trim()) {
+          params.q = this.searchQuery.trim()
         }
         if (this.activeCategory) {
           params.category = this.activeCategory
@@ -41,9 +69,25 @@ export const useProductStore = defineStore('products', {
         if (this.ordering) {
           params.ordering = this.ordering
         }
+        if (this.minPrice !== null && this.minPrice !== undefined && this.minPrice !== '') {
+          params.min_price = this.minPrice
+        }
+        if (this.maxPrice !== null && this.maxPrice !== undefined && this.maxPrice !== '') {
+          params.max_price = this.maxPrice
+        }
+        if (this.onlyFreeShipping) {
+          params.free_shipping = true
+        }
 
         const response = await apiClient.get('/products/', { params })
         this.products = response.data.data || []
+
+        if (response.data.price_bounds) {
+          this.priceBounds = {
+            min: Math.floor(response.data.price_bounds.min || 0),
+            max: Math.ceil(response.data.price_bounds.max || 2500000),
+          }
+        }
       } catch (err) {
         this.error = 'No se pudieron cargar los productos del catálogo.'
         console.error('Error cargando productos:', err)
@@ -112,6 +156,37 @@ export const useProductStore = defineStore('products', {
 
     closeCreateModal() {
       this.createModalOpen = false
+    },
+
+    openFilterModal() {
+      this.filterModalOpen = true
+    },
+
+    closeFilterModal() {
+      this.filterModalOpen = false
+    },
+
+    applyFilters({ minPrice, maxPrice, onlyFreeShipping, category, searchQuery }) {
+      this.minPrice = minPrice !== undefined ? minPrice : this.minPrice
+      this.maxPrice = maxPrice !== undefined ? maxPrice : this.maxPrice
+      this.onlyFreeShipping = onlyFreeShipping !== undefined ? onlyFreeShipping : this.onlyFreeShipping
+      if (category !== undefined) {
+        this.activeCategory = category
+      }
+      if (searchQuery !== undefined) {
+        this.searchQuery = searchQuery
+      }
+      this.filterModalOpen = false
+      this.fetchProducts()
+    },
+
+    clearAllFilters() {
+      this.minPrice = null
+      this.maxPrice = null
+      this.onlyFreeShipping = false
+      this.activeCategory = null
+      this.searchQuery = ''
+      this.fetchProducts()
     },
 
     async createProduct(formDataOrJson) {

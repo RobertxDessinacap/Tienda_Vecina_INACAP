@@ -29,24 +29,24 @@ const installmentValue = computed(() => {
 <template>
   <div
     @click="productStore.openDetail(product)"
-    class="bg-white rounded-lg border border-gray-200/90 hover:border-gray-300 hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group select-none"
+    class="bg-brand-surface rounded-xl border border-brand-border hover:border-brand-primary-border hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group select-none shadow-2xs"
   >
     <!-- Image Area -->
-    <div class="relative w-full pt-[75%] bg-white border-b border-gray-100 overflow-hidden">
+    <div class="relative w-full pt-[75%] bg-brand-surface border-b border-brand-border/60 overflow-hidden">
       <img
         :src="product.display_image_url || product.image_url"
         :alt="product.title"
         class="absolute inset-0 w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
         loading="lazy"
       />
-      <div v-if="product.discount_percentage > 0" class="absolute top-2 left-2 bg-[#00A650] text-white font-black text-[10px] px-2 py-0.5 rounded-xs tracking-tight">
+      <div v-if="product.discount_percentage > 0" class="absolute top-2 left-2 bg-brand-accent text-white font-black text-[10px] px-2 py-0.5 rounded-full tracking-tight shadow-2xs">
         {{ product.discount_percentage }}% OFF
       </div>
 
       <!-- Quick Add to Cart Button -->
       <button
         @click.stop="cartStore.addItem(product, 1)"
-        class="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/95 hover:bg-[#3483FA] text-gray-700 hover:text-white shadow-md border border-gray-200 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+        class="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-brand-surface/95 hover:bg-brand-accent text-slate-700 hover:text-white shadow-md border border-brand-border flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
         title="Agregar al Carrito"
       >
         <ShoppingCart class="w-4 h-4" />
@@ -56,44 +56,44 @@ const installmentValue = computed(() => {
     <!-- Product Details Area -->
     <div class="p-3.5 flex flex-col flex-1 justify-between gap-2">
       <!-- Title -->
-      <h3 class="text-xs text-gray-700 font-normal line-clamp-2 leading-relaxed min-h-[2.5rem]">
+      <h3 class="text-xs text-slate-700 font-normal line-clamp-2 leading-relaxed min-h-[2.5rem]">
         {{ product.title }}
       </h3>
 
       <!-- Price & Installments -->
       <div class="space-y-0.5 mt-1">
-        <div v-if="product.original_price && product.original_price > product.price" class="text-[11px] text-gray-400 line-through">
+        <div v-if="product.original_price && product.original_price > product.price" class="text-[11px] text-slate-400 line-through">
           {{ formatCLP(product.original_price) }}
         </div>
         <div class="flex items-baseline gap-2">
-          <span class="text-xl font-bold text-gray-900 tracking-tight">
+          <span class="text-xl font-bold text-slate-900 tracking-tight">
             {{ formatCLP(product.price) }}
           </span>
-          <span v-if="product.discount_percentage > 0" class="text-xs font-semibold text-[#00A650]">
+          <span v-if="product.discount_percentage > 0" class="text-xs font-semibold text-brand-accent">
             {{ product.discount_percentage }}% OFF
           </span>
         </div>
-        <div class="text-[11px] text-gray-600">
-          en <span class="text-gray-900 font-medium">{{ product.installments }}x {{ installmentValue }}</span> sin interés
+        <div class="text-[11px] text-slate-500">
+          en <span class="text-slate-800 font-medium">{{ product.installments }}x {{ installmentValue }}</span> sin interés
         </div>
       </div>
 
-      <!-- Shipping Badge (MercadoLibre green) -->
-      <div v-if="product.free_shipping" class="flex items-center gap-1 text-[11px] font-bold text-[#00A650]">
-        <Zap class="w-3 h-3 fill-[#00A650]" />
+      <!-- Shipping Badge -->
+      <div v-if="product.free_shipping" class="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+        <Zap class="w-3 h-3 fill-emerald-600" />
         <span>Llega gratis mañana</span>
       </div>
 
       <!-- Footer: Intermediate Seller Pseudonym & Rating -->
-      <div class="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+      <div class="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px] text-slate-400">
         <div class="truncate max-w-[130px]" :title="'Vendido por ' + (product.seller_alias || 'Vendedor')">
-          <span class="text-gray-400">Por </span>
-          <span class="font-medium text-gray-700">{{ product.seller_alias }}</span>
+          <span class="text-slate-400">Por </span>
+          <span class="font-medium text-slate-700">{{ product.seller_alias }}</span>
         </div>
         <div class="flex items-center gap-0.5 text-amber-500 font-medium">
           <Star class="w-3 h-3 fill-amber-400" />
           <span>{{ product.rating }}</span>
-          <span class="text-gray-400 text-[10px]">({{ product.reviews_count }})</span>
+          <span class="text-slate-400 text-[10px]">({{ product.reviews_count }})</span>
         </div>
       </div>
     </div>

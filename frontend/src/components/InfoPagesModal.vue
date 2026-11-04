@@ -36,7 +36,7 @@ defineExpose({ open, close })
       class="bg-white rounded-lg shadow-2xl max-w-3xl w-full overflow-hidden border border-gray-200 relative animate-in fade-in zoom-in-95 duration-200 my-auto text-xs flex flex-col max-h-[85vh]"
     >
       <!-- Modal Header -->
-      <div class="bg-[#FFE600] px-6 py-4 flex items-center justify-between border-b border-yellow-400 shrink-0">
+      <div class="bg-brand-primary px-6 py-4 flex items-center justify-between border-b border-brand-primary-border shrink-0">
         <div class="flex items-center gap-2">
           <ShieldCheck class="w-5 h-5 text-gray-900" />
           <h2 class="text-base font-bold text-gray-900">
@@ -55,7 +55,7 @@ defineExpose({ open, close })
       <div class="flex border-b border-gray-200 bg-gray-50 text-xs font-bold text-gray-600 shrink-0 overflow-x-auto">
         <button
           @click="currentTab = 'terms'"
-          :class="[currentTab === 'terms' ? 'text-[#3483FA] border-b-2 border-[#3483FA] bg-white' : 'hover:text-gray-900']"
+          :class="[currentTab === 'terms' ? 'text-brand-accent border-b-2 border-brand-accent bg-white' : 'hover:text-gray-900']"
           class="flex items-center gap-1.5 px-4 py-3 transition-colors whitespace-nowrap"
         >
           <FileText class="w-4 h-4" />
@@ -64,7 +64,7 @@ defineExpose({ open, close })
 
         <button
           @click="currentTab = 'privacy'"
-          :class="[currentTab === 'privacy' ? 'text-[#3483FA] border-b-2 border-[#3483FA] bg-white' : 'hover:text-gray-900']"
+          :class="[currentTab === 'privacy' ? 'text-brand-accent border-b-2 border-brand-accent bg-white' : 'hover:text-gray-900']"
           class="flex items-center gap-1.5 px-4 py-3 transition-colors whitespace-nowrap"
         >
           <Lock class="w-4 h-4" />
@@ -73,7 +73,7 @@ defineExpose({ open, close })
 
         <button
           @click="currentTab = 'payments'"
-          :class="[currentTab === 'payments' ? 'text-[#3483FA] border-b-2 border-[#3483FA] bg-white' : 'hover:text-gray-900']"
+          :class="[currentTab === 'payments' ? 'text-brand-accent border-b-2 border-brand-accent bg-white' : 'hover:text-gray-900']"
           class="flex items-center gap-1.5 px-4 py-3 transition-colors whitespace-nowrap"
         >
           <CreditCard class="w-4 h-4" />
@@ -82,7 +82,7 @@ defineExpose({ open, close })
 
         <button
           @click="currentTab = 'help'"
-          :class="[currentTab === 'help' ? 'text-[#3483FA] border-b-2 border-[#3483FA] bg-white' : 'hover:text-gray-900']"
+          :class="[currentTab === 'help' ? 'text-brand-accent border-b-2 border-brand-accent bg-white' : 'hover:text-gray-900']"
           class="flex items-center gap-1.5 px-4 py-3 transition-colors whitespace-nowrap"
         >
           <HelpCircle class="w-4 h-4" />
@@ -269,7 +269,7 @@ defineExpose({ open, close })
       <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end shrink-0">
         <button
           @click="close"
-          class="bg-[#3483FA] hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-md text-xs transition-colors"
+          class="bg-brand-accent hover:bg-brand-accent-hover text-white font-bold py-2 px-5 rounded-md text-xs transition-colors"
         >
           Entendido / Cerrar
         </button>

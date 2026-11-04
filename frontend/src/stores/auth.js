@@ -17,6 +17,7 @@ export const useAuthStore = defineStore('auth', {
       error: null,
       authModalOpen: false,
       authModalMode: 'login', // 'login' | 'register'
+      becomeSellerModalOpen: false,
     }
   },
 
@@ -25,8 +26,8 @@ export const useAuthStore = defineStore('auth', {
     userRole: (state) => state.user?.role || 'GUEST',
     isSeller: (state) => state.user?.role === 'SELLER' || state.user?.role === 'ADMIN',
     isAdmin: (state) => state.user?.role === 'ADMIN',
-    intermediateAlias: (state) => state.user?.intermediate_account?.public_alias || 'Usuario Anónimo',
-    intermediateReputation: (state) => state.user?.intermediate_account?.reputation_score || 5.0,
+    intermediateAlias: (state) => state.user?.intermediate_account?.public_alias || state.user?.user_profile?.public_alias || 'Usuario Anónimo',
+    intermediateReputation: (state) => state.user?.intermediate_account?.reputation_score || state.user?.user_profile?.reputation_score || 5.0,
   },
 
   actions: {
@@ -39,6 +40,35 @@ export const useAuthStore = defineStore('auth', {
     closeAuthModal() {
       this.authModalOpen = false
       this.error = null
+    },
+
+    openBecomeSellerModal() {
+      this.becomeSellerModalOpen = true
+      this.error = null
+    },
+
+    closeBecomeSellerModal() {
+      this.becomeSellerModalOpen = false
+      this.error = null
+    },
+
+    async upgradeToSeller() {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await apiClient.post('/auth/upgrade-seller/')
+        const { user } = response.data
+        this.user = user
+        localStorage.setItem('inacap_auth_user', JSON.stringify(user))
+        this.closeBecomeSellerModal()
+        return { success: true, user }
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Error al actualizar a vendedor.'
+        this.error = msg
+        return { success: false, error: msg }
+      } finally {
+        this.loading = false
+      }
     },
 
     async login(email, password) {

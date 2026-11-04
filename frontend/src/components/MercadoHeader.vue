@@ -43,24 +43,25 @@ function handleSellClick() {
   } else if (authStore.isSeller) {
     productStore.openCreateModal()
   } else {
-    alert('Tu cuenta actual tiene rol de "Comprador". Para publicar productos, debes registrarte o iniciar sesión con una cuenta de "Vendedor".')
+    // Abrir modal explicativo con beneficios para convertirse en vendedor
+    authStore.openBecomeSellerModal()
   }
 }
 </script>
 
 <template>
-  <header class="bg-[#FFE600] border-b border-[#E6D000] sticky top-0 z-40 shadow-sm">
+  <header class="bg-brand-primary border-b border-brand-primary-border sticky top-0 z-40 shadow-xs">
     <div class="max-w-7xl mx-auto px-4 py-2.5">
       <!-- Top Row: Logo, Search Bar, Header Banner/Actions -->
       <div class="flex items-center justify-between gap-4">
         <!-- Logo -->
         <div class="flex items-center gap-2 cursor-pointer select-none" @click="productStore.goToCatalog()">
-          <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-xs border border-yellow-300">
-            <span class="text-xl font-black text-[#2D3277] tracking-tighter">IN</span>
+          <div class="w-10 h-10 bg-brand-surface rounded-lg flex items-center justify-center shadow-xs border border-brand-border">
+            <span class="text-xl font-black text-brand-accent tracking-tighter">IN</span>
           </div>
           <div class="leading-tight">
-            <span class="text-xl font-extrabold text-[#2D3277] tracking-tight block">inacap</span>
-            <span class="text-[10px] font-bold text-gray-700 uppercase tracking-widest block -mt-1">e-commerce</span>
+            <span class="text-xl font-extrabold text-brand-primary-text tracking-tight block">inacap</span>
+            <span class="text-[10px] font-bold text-brand-primary-text/80 uppercase tracking-widest block -mt-1">e-commerce</span>
           </div>
         </div>
 
@@ -73,11 +74,11 @@ function handleSellClick() {
               @keypress="blockDangerousCharsOnKeypress"
               @input="onSearchInput"
               placeholder="Buscar productos, marcas, computación y más..."
-              class="w-full bg-white text-gray-800 text-sm pl-4 pr-12 py-2.5 rounded-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-[#3483FA] placeholder-gray-400"
+              class="w-full bg-brand-surface text-slate-800 text-sm pl-4 pr-12 py-2.5 rounded-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-brand-accent placeholder-slate-400"
             />
             <button
               type="submit"
-              class="absolute right-0 top-0 bottom-0 px-3.5 bg-white hover:bg-gray-50 border-l border-gray-200 text-gray-500 hover:text-gray-700 rounded-r-sm transition-colors flex items-center justify-center"
+              class="absolute right-0 top-0 bottom-0 px-3.5 bg-brand-surface hover:bg-brand-primary-subtle border-l border-brand-border text-brand-primary-text hover:text-slate-900 rounded-r-sm transition-colors flex items-center justify-center"
               title="Buscar"
             >
               <Search class="w-4 h-4" />
@@ -86,34 +87,34 @@ function handleSellClick() {
         </form>
 
         <!-- Right Side: Security Trust Badge -->
-        <div class="hidden lg:flex items-center gap-2 text-xs bg-yellow-300/60 px-3 py-1.5 rounded-full text-gray-800 border border-yellow-400/50">
-          <ShieldCheck class="w-4 h-4 text-emerald-700" />
+        <div class="hidden lg:flex items-center gap-2 text-xs bg-brand-primary-subtle px-3 py-1.5 rounded-full text-brand-primary-text border border-brand-primary-border shadow-2xs">
+          <ShieldCheck class="w-4 h-4 text-brand-accent" />
           <span class="font-semibold">Certificación de seguridad</span>
         </div>
       </div>
 
       <!-- Bottom Sub-Row: Location, Navigation Categories, User & Sell Actions -->
-      <div class="flex items-center justify-between mt-2 pt-1 text-xs text-gray-800">
+      <div class="flex items-center justify-between mt-2 pt-1 text-xs text-brand-primary-text">
         <!-- Location Picker (Interactive) -->
         <button
           type="button"
           @click="locationStore.openLocationModal()"
-          class="flex items-center gap-1.5 cursor-pointer hover:bg-yellow-400/70 px-2 py-1 rounded transition-all border border-transparent hover:border-yellow-500/40 text-left"
+          class="flex items-center gap-1.5 cursor-pointer hover:bg-brand-primary-hover/60 px-2 py-1 rounded transition-all border border-transparent hover:border-brand-primary-border text-left"
           title="Cambiar dirección o ciudad de entrega"
         >
-          <MapPin class="w-4 h-4 text-gray-800 shrink-0" />
+          <MapPin class="w-4 h-4 text-brand-primary-text shrink-0" />
           <div class="leading-tight">
-            <span class="text-[9px] text-gray-700 block">Enviar a</span>
-            <span class="font-bold text-gray-900 truncate max-w-[120px] sm:max-w-[150px] block">{{ locationStore.currentLocation }}</span>
+            <span class="text-[9px] text-brand-primary-text/80 block">Enviar a</span>
+            <span class="font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[150px] block">{{ locationStore.currentLocation }}</span>
           </div>
         </button>
 
-        <!-- Category Links -->
-        <nav class="flex items-center gap-4 text-gray-700 font-normal overflow-x-auto py-1">
+        <!-- Category Links (with themed scrollbar) -->
+        <nav class="flex items-center gap-4 text-slate-700 font-normal overflow-x-auto py-1 scrollbar-categories">
           <button
             @click="productStore.setCategory(null)"
-            :class="[!productStore.activeCategory ? 'font-bold text-gray-900' : 'hover:text-black']"
-            class="transition-colors whitespace-nowrap"
+            :class="[!productStore.activeCategory ? 'font-bold text-slate-900 border-b-2 border-brand-primary-text' : 'hover:text-black']"
+            class="transition-colors whitespace-nowrap pb-0.5 shrink-0"
           >
             Todos los Productos
           </button>
@@ -121,8 +122,8 @@ function handleSellClick() {
             v-for="cat in productStore.categories"
             :key="cat.id"
             @click="productStore.setCategory(cat.slug)"
-            :class="[productStore.activeCategory === cat.slug ? 'font-bold text-gray-900 border-b-2 border-gray-800' : 'hover:text-black']"
-            class="transition-colors whitespace-nowrap pb-0.5"
+            :class="[productStore.activeCategory === cat.slug ? 'font-bold text-slate-900 border-b-2 border-brand-primary-text' : 'hover:text-black']"
+            class="transition-colors whitespace-nowrap pb-0.5 shrink-0"
           >
             {{ cat.name }}
           </button>
@@ -130,33 +131,33 @@ function handleSellClick() {
 
         <!-- User / Actions -->
         <div class="flex items-center gap-3">
-          <!-- Vender / Publicar Button (MercadoLibre style) -->
+          <!-- Vender / Publicar Button -->
           <button
             @click="handleSellClick"
-            class="flex items-center gap-1 font-semibold text-gray-900 hover:text-black bg-yellow-300/90 hover:bg-yellow-400 px-3 py-1 rounded-sm transition-all shadow-2xs border border-yellow-500/30"
+            class="flex items-center gap-1 font-semibold text-brand-primary-text hover:text-slate-900 bg-brand-surface hover:bg-brand-primary-subtle px-3 py-1 rounded-sm transition-all shadow-2xs border border-brand-primary-border"
           >
-            <PlusCircle class="w-3.5 h-3.5 text-blue-800" />
+            <PlusCircle class="w-3.5 h-3.5 text-brand-accent" />
             <span>Vender</span>
           </button>
 
           <!-- User State -->
           <template v-if="authStore.isAuthenticated">
-            <div class="flex items-center gap-2 bg-white/70 px-2.5 py-1 rounded-sm border border-yellow-400/60">
-              <div class="w-5 h-5 rounded-full bg-[#3483FA] text-white flex items-center justify-center font-bold text-[10px]">
+            <div class="flex items-center gap-2 bg-brand-surface px-2.5 py-1 rounded-sm border border-brand-primary-border shadow-2xs">
+              <div class="w-5 h-5 rounded-full bg-brand-accent text-white flex items-center justify-center font-bold text-[10px]">
                 {{ authStore.intermediateAlias.charAt(0).toUpperCase() }}
               </div>
               <div class="leading-tight text-left">
                 <div class="flex items-center gap-1">
-                  <span class="font-bold text-gray-900">{{ authStore.intermediateAlias }}</span>
-                  <CheckCircle2 v-if="authStore.isSeller" class="w-3 h-3 text-emerald-600" title="Vendedor Verificado" />
+                  <span class="font-bold text-slate-900">{{ authStore.intermediateAlias }}</span>
+                  <CheckCircle2 v-if="authStore.isSeller" class="w-3 h-3 text-brand-accent" title="Vendedor Verificado" />
                 </div>
-                <span class="text-[9px] text-gray-600 block uppercase font-medium">
+                <span class="text-[9px] text-slate-500 block uppercase font-medium">
                   Rol: {{ authStore.userRole }}
                 </span>
               </div>
               <button
                 @click="authStore.logout"
-                class="ml-1 text-gray-500 hover:text-red-600 transition-colors"
+                class="ml-1 text-slate-400 hover:text-red-500 transition-colors"
                 title="Cerrar Sesión Segura"
               >
                 <LogOut class="w-3.5 h-3.5" />
@@ -165,14 +166,14 @@ function handleSellClick() {
           </template>
 
           <template v-else>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 text-slate-800">
               <button
                 @click="authStore.openAuthModal('register')"
                 class="hover:text-black transition-colors"
               >
                 Crea tu cuenta
               </button>
-              <span class="text-gray-400">|</span>
+              <span class="text-brand-primary-border">|</span>
               <button
                 @click="authStore.openAuthModal('login')"
                 class="font-semibold hover:text-black transition-colors"
@@ -185,13 +186,13 @@ function handleSellClick() {
           <!-- Cart Button -->
           <button
             @click="cartStore.openCart()"
-            class="relative p-1 text-gray-800 hover:text-black transition-colors"
+            class="relative p-1 text-slate-800 hover:text-black transition-colors"
             title="Ver Carrito de Compras"
           >
             <ShoppingCart class="w-4 h-4" />
             <span
               v-if="cartStore.totalItemsCount > 0"
-              class="absolute -top-1 -right-1 bg-[#3483FA] text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center animate-in zoom-in-50 duration-200"
+              class="absolute -top-1 -right-1 bg-brand-accent text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center animate-in zoom-in-50 duration-200"
             >
               {{ cartStore.totalItemsCount }}
             </span>

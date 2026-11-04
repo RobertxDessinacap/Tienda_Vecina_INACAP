@@ -38,3 +38,22 @@ class AccountArchitectureTests(TestCase):
         )
         self.assertTrue(seller.user_profile.is_verified_seller)
         self.assertTrue(seller.user_profile.has_role('SELLER'))
+
+    def test_upgrade_buyer_to_seller(self):
+        from rest_framework.test import APIClient
+        user = UserCredential.objects.create_user(
+            email='comprador_ascenso@inacap.cl',
+            password='Password123!',
+            role=UserCredential.ROLE_BUYER
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/auth/upgrade-seller/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'success')
+
+        user.refresh_from_db()
+        self.assertEqual(user.role, UserCredential.ROLE_SELLER)
+        self.assertTrue(user.user_profile.is_verified_seller)
+        self.assertTrue(user.user_profile.has_role('SELLER'))
