@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
 import { useLocationStore } from '../stores/location'
+import { useAuthStore } from '../stores/auth'
 import {
   ArrowLeft,
   Truck,
@@ -14,13 +15,29 @@ import {
   UserCheck,
   FileText,
   Lock,
+  ExternalLink,
+  Edit3,
+  Store,
 } from 'lucide-vue-next'
 
 const productStore = useProductStore()
 const cartStore = useCartStore()
 const locationStore = useLocationStore()
+const authStore = useAuthStore()
 
 const product = computed(() => productStore.selectedProduct)
+
+const isOwner = computed(() => {
+  if (!authStore.isAuthenticated || !product.value) return false
+  const userProfile = authStore.user?.user_profile
+  const sellerId = product.value.seller?.id
+  const sellerAlias = product.value.seller_alias
+  return (
+    (userProfile?.id && sellerId && userProfile.id === sellerId) ||
+    (authStore.intermediateAlias && sellerAlias && authStore.intermediateAlias === sellerAlias) ||
+    authStore.isAdmin
+  )
+})
 
 // Format currency to Chilean Pesos (CLP)
 function formatCLP(amount) {
@@ -108,12 +125,28 @@ function handleBuyNow() {
             {{ product.title }}
           </h1>
 
-          <div class="flex items-center gap-2 mt-2 text-xs">
-            <div class="flex items-center text-amber-500">
-              <Star class="w-4 h-4 fill-amber-400" />
-              <span class="font-bold ml-1 text-slate-800">{{ product.rating }}</span>
-            </div>
-            <span class="text-slate-400">({{ product.reviews_count }} opiniones)</span>
+          <div class="flex items-center gap-3 mt-2 text-xs flex-wrap">
+            <template v-if="product.reviews_count > 0 && product.rating">
+              <div class="flex items-center text-amber-500">
+                <Star class="w-4 h-4 fill-amber-400" />
+                <span class="font-bold ml-1 text-slate-800">{{ product.rating }}</span>
+              </div>
+              <span class="text-slate-400">({{ product.reviews_count }} opiniones)</span>
+            </template>
+            <template v-else>
+              <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                Nuevo | Sin calificaciones aún
+              </span>
+            </template>
+
+            <!-- Botón Calificar Pedido / Opinar -->
+            <button
+              @click="productStore.openReviewModal(product)"
+              class="text-[11px] text-brand-accent hover:underline font-semibold cursor-pointer inline-flex items-center gap-1"
+            >
+              <Star class="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+              <span>{{ product.reviews_count > 0 ? 'Opinar sobre este producto' : 'Evaluar este producto' }}</span>
+            </button>
           </div>
 
           <!-- Price & Discounts -->
@@ -169,11 +202,53 @@ function handleBuyNow() {
               </span>
             </div>
             <div class="text-slate-800 text-xs font-semibold">
-              Vendido por: <span class="text-slate-950 font-extrabold">{{ product.seller_nombre || 'Rodrigo Morales Vendedor' }}</span>
+              Vendido por: <span class="text-slate-950 font-extrabold">{{ product.seller_nombre || product.seller_alias }}</span>
             </div>
-            <div class="text-slate-600 text-[11px]">
-              Tienda oficial: <strong class="text-slate-900">{{ product.seller_alias }}</strong>
+
+            <!-- Tienda Oficial (Solo si está registrada) -->
+            <div v-if="product.is_official_store && product.seller_official_store_name" class="text-slate-700 text-xs flex items-center gap-1.5 pt-1">
+              <span class="font-medium text-slate-600">Tienda oficial:</span>
+              <template v-if="product.seller_official_store_url">
+                <a
+                  :href="product.seller_official_store_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="font-bold text-brand-accent hover:underline inline-flex items-center gap-1"
+                >
+                  <span>{{ product.seller_official_store_name }}</span>
+                  <ExternalLink class="w-3 h-3" />
+                </a>
+              </template>
+              <template v-else>
+                <strong class="font-bold text-slate-900">{{ product.seller_official_store_name }}</strong>
+              </template>
             </div>
+            <div v-else class="text-slate-500 text-[11px]">
+              Vendedor Autorizado Mercado Inacap ({{ product.seller_alias }})
+            </div>
+          </div>
+
+          <!-- Owner Control Banner (Si el usuario es dueño de esta publicación) -->
+          <div v-if="isOwner" class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-blue-950 flex items-center gap-1.5">
+                <Edit3 class="w-4 h-4 text-blue-600" />
+                Eres el dueño de esta publicación
+              </span>
+              <button
+                @click="productStore.goToMyProducts()"
+                class="text-[11px] text-brand-accent hover:underline font-semibold cursor-pointer"
+              >
+                Mis Publicaciones
+              </button>
+            </div>
+            <button
+              @click="productStore.openEditModal(product)"
+              class="w-full bg-slate-900 hover:bg-black text-white font-bold py-2 px-3 rounded-lg text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Edit3 class="w-3.5 h-3.5" />
+              <span>Editar esta Publicación</span>
+            </button>
           </div>
         </div>
 

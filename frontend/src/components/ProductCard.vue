@@ -86,14 +86,18 @@ const installmentValue = computed(() => {
 
       <!-- Footer: Intermediate Seller Pseudonym & Rating -->
       <div class="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px] text-slate-400">
-        <div class="truncate max-w-[130px]" :title="'Vendido por ' + (product.seller_alias || 'Vendedor')">
-          <span class="text-slate-400">Por </span>
-          <span class="font-medium text-slate-700">{{ product.seller_alias }}</span>
+        <div class="truncate max-w-[130px]" :title="'Vendido por ' + (product.seller_official_store_name || product.seller_alias || 'Vendedor')">
+          <span v-if="product.is_official_store" class="text-brand-accent font-bold">Oficial: </span>
+          <span v-else class="text-slate-400">Por </span>
+          <span class="font-medium text-slate-700">{{ product.is_official_store ? product.seller_official_store_name : product.seller_alias }}</span>
         </div>
-        <div class="flex items-center gap-0.5 text-amber-500 font-medium">
+        <div v-if="product.reviews_count > 0 && product.rating" class="flex items-center gap-0.5 text-amber-500 font-medium">
           <Star class="w-3 h-3 fill-amber-400" />
           <span>{{ product.rating }}</span>
           <span class="text-slate-400 text-[10px]">({{ product.reviews_count }})</span>
+        </div>
+        <div v-else class="text-[10px] text-brand-accent font-semibold bg-blue-50 px-1.5 py-0.5 rounded">
+          Nuevo
         </div>
       </div>
     </div>

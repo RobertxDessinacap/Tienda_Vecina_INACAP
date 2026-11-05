@@ -28,6 +28,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'reputation_score',
             'is_verified_seller',
             'total_sales',
+            'is_official_store',
+            'official_store_name',
+            'official_store_url',
             'roles',
             'created_at'
         ]
@@ -35,6 +38,24 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_roles(self, obj):
         return [ur.rol.nombre for ur in obj.user_roles.filter(activo=True)]
+
+
+class RegisterStoreSerializer(serializers.Serializer):
+    """
+    Serializador para registrar o editar una Tienda Oficial del vendedor.
+    """
+    store_name = serializers.CharField(max_length=150, min_length=3)
+    store_url = serializers.URLField(max_length=500, required=False, allow_blank=True)
+
+    def validate_store_name(self, value):
+        from apps.products.serializers import validate_xss_safe
+        return validate_xss_safe(value, "Nombre de la Tienda Oficial")
+
+    def validate_store_url(self, value):
+        if value:
+            from apps.products.serializers import validate_xss_safe
+            return validate_xss_safe(value, "URL de la Tienda Oficial")
+        return value
 
 
 # Alias para compatibilidad

@@ -4,12 +4,19 @@ import apiClient from '../services/api'
 export const useProductStore = defineStore('products', {
   state: () => ({
     products: [],
+    myProducts: [],
     categories: [],
     selectedProduct: null,
+    editingProduct: null,
+    reviewingProduct: null,
     detailModalOpen: false,
     createModalOpen: false,
+    editModalOpen: false,
     filterModalOpen: false,
+    registerStoreModalOpen: false,
+    reviewModalOpen: false,
     loading: false,
+    myProductsLoading: false,
     error: null,
     activeCategory: null,
     searchQuery: '',
@@ -21,7 +28,7 @@ export const useProductStore = defineStore('products', {
       min: 30000,
       max: 2100000,
     },
-    activeView: 'catalog', // 'catalog' | 'product_page'
+    activeView: 'catalog', // 'catalog' | 'product_page' | 'my_products'
     activeProductSlug: null,
   }),
 
@@ -209,6 +216,177 @@ export const useProductStore = defineStore('products', {
             msg = `${firstKey}: ${errors[firstKey][0]}`
           } else if (typeof errors === 'string') {
             msg = errors
+          }
+        }
+        return { success: false, error: msg }
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // ===== VISTA ÚNICA DE VENDEDOR (MIS PUBLICACIONES) =====
+    async fetchMyProducts() {
+      this.myProductsLoading = true
+      try {
+        const response = await apiClient.get('/products/my-products/')
+        this.myProducts = response.data.data || []
+      } catch (err) {
+        console.error('Error cargando mis publicaciones:', err)
+      } finally {
+        this.myProductsLoading = false
+      }
+    },
+
+    goToMyProducts() {
+      this.activeView = 'my_products'
+      this.selectedProduct = null
+      this.activeProductSlug = null
+      window.history.pushState({}, '', '/mis-publicaciones')
+      this.fetchMyProducts()
+    },
+
+    // ===== MODAL DE EDICIÓN DE PRODUCTO =====
+    openEditModal(product) {
+      this.editingProduct = { ...product }
+      this.editModalOpen = true
+    },
+
+    closeEditModal() {
+      this.editModalOpen = false
+      this.editingProduct = null
+    },
+
+    async updateProduct(slug, formDataOrJson) {
+      this.loading = true
+      try {
+        const isFormData = formDataOrJson instanceof FormData
+        const headers = isFormData ? { 'Content-Type': 'multipart/form-data' } : {}
+
+        const response = await apiClient.put(`/products/${slug}/`, formDataOrJson, { headers })
+        const updated = response.data.data
+
+        // Actualizar en myProducts
+        const myIndex = this.myProducts.findIndex((p) => p.slug === slug || p.id === updated.id)
+        if (myIndex !== -1) {
+          this.myProducts[myIndex] = updated
+        }
+
+        // Actualizar en catálogo general
+        const catIndex = this.products.findIndex((p) => p.slug === slug || p.id === updated.id)
+        if (catIndex !== -1) {
+          this.products[catIndex] = updated
+        }
+
+        if (this.selectedProduct && (this.selectedProduct.slug === slug || this.selectedProduct.id === updated.id)) {
+          this.selectedProduct = updated
+        }
+
+        return { success: true, product: updated }
+      } catch (err) {
+        let msg = 'Error al actualizar la publicación.'
+        if (err.response?.data?.errors) {
+          const errors = err.response.data.errors
+          const firstKey = Object.keys(errors)[0]
+          if (firstKey && Array.isArray(errors[firstKey])) {
+            msg = `${firstKey}: ${errors[firstKey][0]}`
+          } else if (typeof errors === 'string') {
+            msg = errors
+          }
+        }
+        return { success: false, error: msg }
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async deleteProduct(slug) {
+      this.loading = true
+      try {
+        await apiClient.delete(`/products/${slug}/`)
+        this.myProducts = this.myProducts.filter((p) => p.slug !== slug)
+        this.products = this.products.filter((p) => p.slug !== slug)
+        if (this.selectedProduct?.slug === slug) {
+          this.selectedProduct = null
+          this.goToCatalog()
+        }
+        return { success: true }
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Error al dar de baja el producto.'
+        return { success: false, error: msg }
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // ===== MODAL REGISTRO DE TIENDA OFICIAL =====
+    openRegisterStoreModal() {
+      this.registerStoreModalOpen = true
+    },
+
+    closeRegisterStoreModal() {
+      this.registerStoreModalOpen = false
+    },
+
+    async registerStore({ store_name, store_url }) {
+      this.loading = true
+      try {
+        const response = await apiClient.post('/auth/register-store/', { store_name, store_url })
+        // Refrescar mis publicaciones y catálogo para reflejar la tienda oficial
+        await Promise.all([this.fetchMyProducts(), this.fetchProducts()])
+        this.closeRegisterStoreModal()
+        return { success: true, data: response.data.data }
+      } catch (err) {
+        let msg = 'Error al registrar la tienda oficial.'
+        if (err.response?.data?.errors) {
+          const errors = err.response.data.errors
+          const firstKey = Object.keys(errors)[0]
+          if (firstKey && Array.isArray(errors[firstKey])) {
+            msg = `${firstKey}: ${errors[firstKey][0]}`
+          }
+        }
+        return { success: false, error: msg }
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // ===== EVALUACIÓN DE COMPRADOR / CALIFICACIONES =====
+    openReviewModal(product) {
+      this.reviewingProduct = product
+      this.reviewModalOpen = true
+    },
+
+    closeReviewModal() {
+      this.reviewModalOpen = false
+      this.reviewingProduct = null
+    },
+
+    async submitReview(slug, { rating, comment }) {
+      this.loading = true
+      try {
+        const response = await apiClient.post(`/products/${slug}/review/`, { rating, comment })
+        const { updated_rating, reviews_count } = response.data.data
+
+        // Actualizar el producto seleccionado y en las listas
+        if (this.selectedProduct && this.selectedProduct.slug === slug) {
+          this.selectedProduct.rating = updated_rating
+          this.selectedProduct.reviews_count = reviews_count
+        }
+        const prod = this.products.find((p) => p.slug === slug)
+        if (prod) {
+          prod.rating = updated_rating
+          prod.reviews_count = reviews_count
+        }
+
+        this.closeReviewModal()
+        return { success: true, updated_rating, reviews_count }
+      } catch (err) {
+        let msg = 'Error al registrar tu evaluación.'
+        if (err.response?.data?.errors) {
+          const errors = err.response.data.errors
+          const firstKey = Object.keys(errors)[0]
+          if (firstKey && Array.isArray(errors[firstKey])) {
+            msg = `${firstKey}: ${errors[firstKey][0]}`
           }
         }
         return { success: false, error: msg }

@@ -81,11 +81,18 @@ function handleBuy() {
 
             <!-- Rating -->
             <div class="flex items-center gap-1.5 mt-2 text-xs">
-              <div class="flex items-center text-amber-500">
-                <Star class="w-4 h-4 fill-amber-400" />
-                <span class="font-bold ml-1 text-slate-800">{{ product.rating }}</span>
-              </div>
-              <span class="text-slate-400">({{ product.reviews_count }} opiniones)</span>
+              <template v-if="product.reviews_count > 0 && product.rating">
+                <div class="flex items-center text-amber-500">
+                  <Star class="w-4 h-4 fill-amber-400" />
+                  <span class="font-bold ml-1 text-slate-800">{{ product.rating }}</span>
+                </div>
+                <span class="text-slate-400">({{ product.reviews_count }} opiniones)</span>
+              </template>
+              <template v-else>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                  Nuevo | Sin valoraciones aún
+                </span>
+              </template>
             </div>
 
             <!-- Price -->

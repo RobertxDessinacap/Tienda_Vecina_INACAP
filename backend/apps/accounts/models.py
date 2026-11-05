@@ -129,6 +129,12 @@ class UserProfile(models.Model):
     reputation_score = models.DecimalField(max_digits=3, decimal_places=2, default=5.00)
     is_verified_seller = models.BooleanField(default=False)
     total_sales = models.PositiveIntegerField(default=0)
+
+    # Tienda Oficial (Registrada por el vendedor)
+    is_official_store = models.BooleanField(default=False, verbose_name="¿Es Tienda Oficial?")
+    official_store_name = models.CharField(max_length=150, blank=True, default='', verbose_name="Nombre de la Tienda Oficial")
+    official_store_url = models.URLField(max_length=500, blank=True, default='', verbose_name="URL del Sitio Oficial")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

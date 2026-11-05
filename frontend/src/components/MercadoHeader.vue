@@ -11,6 +11,7 @@ import {
   MapPin,
   User,
   PlusCircle,
+  Package,
   ShieldCheck,
   LogOut,
   ChevronDown,
@@ -130,11 +131,23 @@ function handleSellClick() {
         </nav>
 
         <!-- User / Actions -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <!-- Mis Publicaciones (Vista Única para Vendedores) -->
+          <button
+            v-if="authStore.isSeller"
+            @click="productStore.goToMyProducts()"
+            :class="productStore.activeView === 'my_products' ? 'bg-brand-accent text-white font-bold' : 'bg-brand-surface text-brand-primary-text hover:bg-brand-primary-subtle font-semibold'"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-all shadow-2xs border border-brand-primary-border text-xs cursor-pointer"
+            title="Ver y administrar mis publicaciones exclusivas"
+          >
+            <Package class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">Mis Publicaciones</span>
+          </button>
+
           <!-- Vender / Publicar Button -->
           <button
             @click="handleSellClick"
-            class="flex items-center gap-1 font-semibold text-brand-primary-text hover:text-slate-900 bg-brand-surface hover:bg-brand-primary-subtle px-3 py-1 rounded-sm transition-all shadow-2xs border border-brand-primary-border"
+            class="flex items-center gap-1 font-semibold text-brand-primary-text hover:text-slate-900 bg-brand-surface hover:bg-brand-primary-subtle px-3 py-1 rounded-sm transition-all shadow-2xs border border-brand-primary-border cursor-pointer text-xs"
           >
             <PlusCircle class="w-3.5 h-3.5 text-brand-accent" />
             <span>Vender</span>

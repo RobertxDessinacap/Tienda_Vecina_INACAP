@@ -36,6 +36,9 @@ class ProductSerializer(serializers.ModelSerializer):
     seller_nombre = serializers.CharField(source='seller_profile.persona.nombre_completo', read_only=True)
     seller_reputation = serializers.FloatField(source='seller_profile.reputation_score', read_only=True)
     seller = UserProfileSerializer(source='seller_profile', read_only=True)
+    is_official_store = serializers.BooleanField(source='seller_profile.is_official_store', read_only=True)
+    seller_official_store_name = serializers.CharField(source='seller_profile.official_store_name', read_only=True)
+    seller_official_store_url = serializers.CharField(source='seller_profile.official_store_url', read_only=True)
     discount_percentage = serializers.ReadOnlyField()
     display_image_url = serializers.ReadOnlyField()
 
@@ -62,6 +65,9 @@ class ProductSerializer(serializers.ModelSerializer):
             'seller_alias',
             'seller_nombre',
             'seller_reputation',
+            'is_official_store',
+            'seller_official_store_name',
+            'seller_official_store_url',
             'rating',
             'reviews_count',
             'created_at',
@@ -133,3 +139,47 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
             **validated_data
         )
         return product
+
+    def update(self, instance, validated_data):
+        from django.utils.text import slugify
+        image_file = validated_data.pop('image_file', None)
+        if image_file:
+            instance.image = process_and_secure_product_image(image_file)
+
+        old_title = instance.title
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        # Si el título cambió, recalcular URL limpia (slug)
+        if 'title' in validated_data and validated_data['title'] != old_title:
+            base_slug = slugify(instance.title) or 'producto'
+            potential_slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=potential_slug).exclude(id=instance.id).exists():
+                potential_slug = f"{base_slug}-{counter}"
+                counter += 1
+            instance.slug = potential_slug
+
+        instance.save()
+        return instance
+
+
+class ProductReviewSerializer(serializers.ModelSerializer):
+    """
+    Serializador para que los compradores evalúen un pedido / producto.
+    """
+    buyer_alias = serializers.CharField(source='user_profile.public_alias', read_only=True)
+
+    class Meta:
+        from apps.products.models import ProductReview
+        model = ProductReview
+        fields = ['id', 'rating', 'comment', 'buyer_alias', 'created_at']
+        read_only_fields = ['id', 'buyer_alias', 'created_at']
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("La valoración debe ser un número entero de 1 a 5 estrellas.")
+        return value
+
+    def validate_comment(self, value):
+        return validate_xss_safe(value, "Comentario de Evaluación")

@@ -153,6 +153,9 @@ class ProductDetailView(APIView):
             })
         return Response({"status": "fail", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
+    def patch(self, request, lookup):
+        return self.put(request, lookup)
+
     def delete(self, request, lookup):
         product = self.get_object(lookup)
         if not product:
@@ -163,3 +166,88 @@ class ProductDetailView(APIView):
             "status": "success",
             "message": "Producto eliminado del catálogo."
         }, status=status.HTTP_200_OK)
+
+
+class MyProductsView(APIView):
+    """
+    Vista única para Vendedores: Lista exclusivamente los productos publicados
+    por el usuario autenticado (su UserProfile).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSellerOrAdmin]
+
+    def get(self, request):
+        user_profile = getattr(request.user, 'user_profile', None)
+        if not user_profile:
+            return Response({"status": "fail", "message": "Perfil de vendedor no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        products = Product.objects.filter(seller_profile=user_profile).select_related(
+            'category', 'seller_profile', 'seller_profile__persona'
+        ).order_by('-created_at')
+
+        serializer = ProductSerializer(products, many=True)
+        return Response({
+            "status": "success",
+            "count": products.count(),
+            "data": serializer.data
+        })
+
+
+class ProductReviewView(APIView):
+    """
+    Permite a los compradores evaluar un producto / pedido y consultar opiniones.
+    """
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
+    def get_product(self, lookup):
+        try:
+            val_uuid = uuid.UUID(str(lookup))
+            return Product.objects.filter(id=val_uuid).first()
+        except ValueError:
+            return Product.objects.filter(slug=lookup).first()
+
+    def get(self, request, lookup):
+        product = self.get_product(lookup)
+        if not product:
+            return Response({"status": "error", "message": "Producto no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.products.serializers import ProductReviewSerializer
+        reviews = product.reviews.select_related('user_profile').order_by('-created_at')
+        serializer = ProductReviewSerializer(reviews, many=True)
+        return Response({
+            "status": "success",
+            "count": reviews.count(),
+            "rating": product.rating,
+            "reviews_count": product.reviews_count,
+            "data": serializer.data
+        })
+
+    def post(self, request, lookup):
+        product = self.get_product(lookup)
+        if not product:
+            return Response({"status": "error", "message": "Producto no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.products.serializers import ProductReviewSerializer
+        from apps.products.models import ProductReview
+        serializer = ProductReviewSerializer(data=request.data)
+        if serializer.is_valid():
+            user_profile = getattr(request.user, 'user_profile', None)
+            review = ProductReview.objects.create(
+                product=product,
+                user_profile=user_profile,
+                rating=serializer.validated_data['rating'],
+                comment=serializer.validated_data.get('comment', '')
+            )
+            product.refresh_from_db()
+            return Response({
+                "status": "success",
+                "message": "¡Evaluación registrada exitosamente!",
+                "data": {
+                    "review": ProductReviewSerializer(review).data,
+                    "updated_rating": product.rating,
+                    "reviews_count": product.reviews_count
+                }
+            }, status=status.HTTP_201_CREATED)
+        return Response({"status": "fail", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)

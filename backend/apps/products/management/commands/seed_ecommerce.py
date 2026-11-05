@@ -56,10 +56,17 @@ class Command(BaseCommand):
             seller_profile.persona.save()
             seller_profile.reputation_score = 4.90
             seller_profile.is_verified_seller = True
+            seller_profile.is_official_store = True
+            seller_profile.official_store_name = 'TechChile Oficial'
+            seller_profile.official_store_url = 'https://techchile.cl'
             seller_profile.save()
             self.stdout.write(self.style.SUCCESS('Creado Vendedor: vendedor@inacap.cl (Vendedor1234!)'))
         else:
             seller_profile = seller_user.user_profile
+            seller_profile.is_official_store = True
+            seller_profile.official_store_name = 'TechChile Oficial'
+            seller_profile.official_store_url = 'https://techchile.cl'
+            seller_profile.save()
 
         buyer_user, created = UserCredential.objects.get_or_create(
             email='comprador@inacap.cl',

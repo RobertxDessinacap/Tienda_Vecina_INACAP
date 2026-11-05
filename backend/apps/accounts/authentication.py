@@ -25,6 +25,9 @@ def generate_jwt_token(user: UserCredential) -> str:
 
 class JWTAuthentication(authentication.BaseAuthentication):
     """DRF Authentication provider that validates Bearer JWTs."""
+    def authenticate_header(self, request):
+        return 'Bearer realm="api"'
+
     def authenticate(self, request):
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -38,8 +41,14 @@ class JWTAuthentication(authentication.BaseAuthentication):
         try:
             payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=['HS256'])
         except jwt.ExpiredSignatureError:
+            # En peticiones de solo lectura a vistas públicas, si el token expiró,
+            # no rompemos el catálogo público: tratamos la petición como anónima.
+            if request.method in ('GET', 'HEAD', 'OPTIONS'):
+                return None
             raise exceptions.AuthenticationFailed('El token de sesión ha expirado. Inicia sesión nuevamente.')
         except jwt.InvalidTokenError:
+            if request.method in ('GET', 'HEAD', 'OPTIONS'):
+                return None
             raise exceptions.AuthenticationFailed('Token de autenticación inválido o manipulado.')
 
         user_id = payload.get('sub')
