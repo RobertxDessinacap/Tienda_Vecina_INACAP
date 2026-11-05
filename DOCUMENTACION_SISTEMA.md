@@ -24,6 +24,10 @@
    - 5.1. [Regla de Negocio ADS (+250 Caracteres)](#sec-5-1-regla-ads)
    - 5.2. [URL Limpia y Exposición del Vendedor](#sec-5-2-url-limpia)
    - 5.3. [Transparencia Comercial (SERNAC / Ley 19.496) vs Privacidad de Datos PII](#sec-5-3-sernac-pii)
+   - 5.4. [Vista Única para Vendedores: "Mis Publicaciones" y Gestión del Inventario](#sec-5-4-panel-vendedor)
+   - 5.5. [Edición, Recálculo de URL Limpia y Baja de Publicaciones](#sec-5-5-edicion-baja)
+   - 5.6. [Valoraciones Reales vs Ficticias: Modelo de Evaluación por Compradores](#sec-5-6-valoracion-compradores)
+   - 5.7. [Módulo de Tienda Oficial y Enlace Clickeable](#sec-5-7-tienda-oficial)
 6. [Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)](#sec-6-calculo-carrito)
 7. [Pasarela de Pagos: Transbank Webpay Plus Oficial](#sec-7-pasarela-transbank)
 8. [Taxonomía de Categorías del E-Commerce y Categoría "Otros"](#sec-8-taxonomia-categorias)
@@ -122,6 +126,11 @@ flowchart TB
 | `POST` | `/api/v1/products/` | Requerida | `SELLER` / `ADMIN` | `title`, `price`, `description`, `caracteristicas_ads`, `category`, `image_file` | `201`, `400`, `403` | Publicación de producto. Normaliza foto a 900x600 $\le$ 1MB y genera URL limpia |
 | `GET` | `/api/v1/products/<slug>/` | Pública | Cualquiera | *None* | `200`, `404` | Vista de producto con URL limpia; expone nombre completo del vendedor |
 | `GET` | `/api/v1/products/categories/` | Pública | Cualquiera | *None* | `200` | Listado de 14 categorías oficiales incluyendo "Otros" |
+| `GET` | `/api/v1/products/my-products/` | Requerida | `SELLER` / `ADMIN` | *None* | `200`, `401`, `403` | Vista única de vendedor: lista exclusivamente los productos del usuario autenticado |
+| `PUT` / `PATCH` | `/api/v1/products/<slug>/` | Requerida | Dueño / `ADMIN` | `title`, `price`, `stock`, `description`, `caracteristicas_ads`, `image_file` | `200`, `400`, `403` | Edición de publicación: actualiza datos, foto y recalcula URL limpia |
+| `DELETE` | `/api/v1/products/<slug>/` | Requerida | Dueño / `ADMIN` | *None* | `200`, `403`, `404` | Dar de baja una publicación por el dueño del producto |
+| `POST` | `/api/v1/products/<slug>/review/` | Requerida | Comprador autenticado | `{"rating": 1-5, "comment": "..."}` | `201`, `400` | Evaluación de compra: recalcula dinámicamente promedio de estrellas sin valores ficticios |
+| `POST` | `/api/v1/auth/register-store/` | Requerida | `SELLER` / `ADMIN` | `{"store_name": "...", "store_url": "..."}` | `200`, `400` | Registra Tienda Oficial: asigna insignia y enlace clickeable a los productos |
 | `POST` | `/api/v1/payments/cart/calculate/` | Pública | Cualquiera | `{"items": [{"product_id": "uuid", "quantity": 1}]}` | `200`, `400` | Cálculo seguro de carrito 100% en servidor PostgreSQL (Anti-Tampering JS) |
 | `POST` | `/api/v1/payments/transbank/init/` | Pública | Cualquiera | `{"items": [...], "payment_method": "WEBPAY_PLUS"}` | `201`, `400` | Inicializa compra, crea orden y retorna `token_ws` y URL oficial Webpay Plus |
 | `POST` | `/api/v1/payments/transbank/commit/` | Pública | Cualquiera | `{"token": "token_ws"}` | `200`, `400`, `404` | Confirma pago con Transbank, descuenta stock en PostgreSQL y emite voucher imprimible |
@@ -366,6 +375,33 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
 ### 5.3. Transparencia Comercial (SERNAC / Ley N° 19.496) vs Protección de Datos Civiles (PII)
 - **Principio de Transparencia Comercial:** La Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y las circulares normativas del SERNAC para el comercio electrónico en Chile exigen que el consumidor conozca la identidad comercial de la contraparte que ofrece un producto o servicio antes de celebrar la transacción. Por este motivo, el sistema expone públicamente el `nombre_completo` del vendedor en la ficha del producto (`ProductCleanUrlView.vue`).
 - **Principio de Minimización de Datos (ISO/IEC 27001 A.8.11 & Ley N° 19.628):** Los datos personales sensibles almacenados en la tabla `accounts_persona` (RUT, número de teléfono particular, correo electrónico privado y dirección de residencia física) **no se exponen** jamás en la API pública ni en las vistas del catálogo. Solo el personal de auditoría o los administradores autenticados mediante JWT con rol `ADMIN` pueden consultar estos atributos para fines de facturación o mediación legal.
+
+<a id="sec-5-4-panel-vendedor"></a>
+### 5.4. Vista Única para Vendedores: "Mis Publicaciones" y Gestión del Inventario
+- **Acceso Exclusivo:** La vista `SellerProductsView.vue` y el endpoint `/api/v1/products/my-products/` están restringidos a usuarios con rol `SELLER` o `ADMIN`.
+- **Aislamiento de Datos:** Cada vendedor solo puede visualizar, editar y dar de baja sus propios productos vinculados a su `UserProfile`. No es posible que un vendedor modifique o elimine artículos pertenecientes a otro usuario.
+- **Grilla de Operaciones:** Cada tarjeta de producto expone de forma directa:
+  - **Editar:** Abre el modal de edición precargado con todos los datos existentes.
+  - **Dar de baja:** Modal de confirmación para eliminar la publicación de PostgreSQL de forma segura.
+  - **Ir a la página:** Acceso instantáneo a la vista pública del producto (`/producto/<slug>`).
+
+<a id="sec-5-5-edicion-baja"></a>
+### 5.5. Edición y Doble Opción de Guardado
+El modal de edición (`EditProductModal.vue`) incluye dos opciones de guardado requeridas:
+1. **"Guardar":** Persiste las modificaciones en PostgreSQL (título, precio, stock, descripción, características ADS >250 caracteres, nueva imagen 900x600 opcional) y actualiza el inventario del vendedor manteniendo al usuario en el panel.
+2. **"Guardar y ver página de venta":** Persiste los cambios y redirige de inmediato a la URL limpia `/producto/<slug>`, permitiendo al vendedor comprobar cómo visualizan los compradores la publicación final.
+
+<a id="sec-5-6-valoracion-compradores"></a>
+### 5.6. Valoraciones Reales vs Ficticias: Modelo de Evaluación por Compradores
+- **Cero Falsedad Comercial:** Los productos recién publicados se inicializan con `rating = None` y `reviews_count = 0`. No presentan estrellas artificiales ni valoraciones predeterminadas infladas.
+- **Distintivo "Nuevo":** En el catálogo y ficha de producto, los artículos sin opiniones muestran la insignia `"Nuevo | Sin valoraciones aún"`.
+- **Modelo `ProductReview` y Endpoint de Evaluación:** A través del endpoint `POST /api/v1/products/<slug>/review/` y el modal `ProductReviewModal.vue`, los compradores autenticados pueden calificar el producto de 1 a 5 estrellas y dejar comentarios. El promedio de estrellas y el conteo de reseñas se recalculan dinámicamente en el servidor.
+
+<a id="sec-5-7-tienda-oficial"></a>
+### 5.7. Módulo de Tienda Oficial y Enlace Web Clickeable
+- **Condición de Tienda Oficial:** Un vendedor nuevo no posee insignia de "Tienda Oficial" por defecto. En su lugar, el producto indica claramente `"Vendido por: [Nombre del Vendedor]"`.
+- **Apartado "Registra tu Tienda Oficial":** A través de `RegisterStoreModal.vue` y el endpoint `POST /api/v1/auth/register-store/`, el vendedor puede registrar su nombre comercial oficial (`store_name`) y la URL de su sitio web (`store_url`).
+- **Enlace Interactivo:** Al activarse la tienda oficial, los productos muestran la etiqueta `"Tienda oficial: [Nombre]"` y, si cuenta con una URL asignada, se renderiza como un enlace interactivo clickeable que abre el sitio oficial en una nueva pestaña.
 
 <a id="sec-6-calculo-carrito"></a>
 ## 6. Seguridad Crítica: Cálculo de Carrito en Servidor (Anti-Tampering JS)

@@ -6,6 +6,10 @@ import ProductCard from './components/ProductCard.vue'
 import ProductDetailModal from './components/ProductDetailModal.vue'
 import ProductCleanUrlView from './components/ProductCleanUrlView.vue'
 import CreateProductModal from './components/CreateProductModal.vue'
+import EditProductModal from './components/EditProductModal.vue'
+import RegisterStoreModal from './components/RegisterStoreModal.vue'
+import ProductReviewModal from './components/ProductReviewModal.vue'
+import SellerProductsView from './components/SellerProductsView.vue'
 import AuthModal from './components/AuthModal.vue'
 import BecomeSellerModal from './components/BecomeSellerModal.vue'
 import PriceFilterModal from './components/PriceFilterModal.vue'
@@ -31,18 +35,21 @@ const authStore = useAuthStore()
 const infoModalRef = ref(null)
 
 onMounted(async () => {
+  authStore.initAuth()
   await Promise.all([
     productStore.fetchCategories(),
     productStore.fetchProducts(),
   ])
 
-  // Soporte de URL Limpia en la carga inicial (ej: /producto/samsung-galaxy-s24-ultra)
+  // Soporte de URL Limpia y rutas en la carga inicial
   const path = window.location.pathname
   if (path.startsWith('/producto/')) {
     const slug = path.replace('/producto/', '').replace(/\/$/, '')
     if (slug) {
       productStore.fetchProductBySlug(slug)
     }
+  } else if (path === '/mis-publicaciones') {
+    productStore.goToMyProducts()
   }
 
   // Manejar botón Atrás/Adelante del navegador
@@ -53,6 +60,8 @@ onMounted(async () => {
       if (slug) {
         productStore.fetchProductBySlug(slug)
       }
+    } else if (currentPath === '/mis-publicaciones') {
+      productStore.goToMyProducts()
     } else {
       productStore.activeView = 'catalog'
       productStore.selectedProduct = null
@@ -73,7 +82,12 @@ onMounted(async () => {
         <ProductCleanUrlView />
       </template>
 
-      <!-- VISTA 2: Catálogo Completo -->
+      <!-- VISTA 2: Mis Publicaciones (Panel Único para Vendedores) -->
+      <template v-else-if="productStore.activeView === 'my_products'">
+        <SellerProductsView />
+      </template>
+
+      <!-- VISTA 3: Catálogo Completo -->
       <template v-else>
         <div class="max-w-7xl mx-auto px-4 py-4">
           <!-- Promotional Banner -->
@@ -185,6 +199,9 @@ onMounted(async () => {
     <CartDrawer />
     <PaymentCarouselModal />
     <CreateProductModal />
+    <EditProductModal />
+    <RegisterStoreModal />
+    <ProductReviewModal />
     <AuthModal />
     <BecomeSellerModal />
     <PriceFilterModal />

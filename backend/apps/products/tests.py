@@ -90,3 +90,101 @@ class ProductProfRequirementsTests(TestCase):
         """Seguridad: El parámetro de búsqueda q purga caracteres [ } * < > sin generar error."""
         response = self.client.get('/api/v1/products/?q=%5B%7D*%3Cscript%3E')
         self.assertEqual(response.status_code, 200)
+
+    def test_seller_my_products_and_edit_delete_flow(self):
+        """Verifica que el vendedor puede listar sus productos, editarlos y darlos de baja."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.seller_token}')
+        # 1. Crear producto
+        create_res = self.client.post('/api/v1/products/', {
+            'title': 'Monitor Gamer Curvo 27',
+            'price': 199990,
+            'description': 'Monitor para pruebas de edición',
+            'caracteristicas_ads': self.valid_ads_text,
+            'stock': 8,
+            'category': str(self.category.id)
+        })
+        self.assertEqual(create_res.status_code, 201)
+        slug = create_res.json()['data']['slug']
+
+        # 2. Listar mis productos (debe aparecer)
+        my_res = self.client.get('/api/v1/products/my-products/')
+        self.assertEqual(my_res.status_code, 200)
+        slugs = [p['slug'] for p in my_res.json()['data']]
+        self.assertIn(slug, slugs)
+
+        # 3. Editar publicación
+        edit_res = self.client.put(f'/api/v1/products/{slug}/', {
+            'title': 'Monitor Gamer Curvo 27 Pro Edition',
+            'price': 189990,
+            'stock': 12,
+            'description': 'Descripción actualizada',
+            'caracteristicas_ads': self.valid_ads_text
+        })
+        self.assertEqual(edit_res.status_code, 200)
+        new_slug = edit_res.json()['data']['slug']
+
+        # 4. Dar de baja
+        del_res = self.client.delete(f'/api/v1/products/{new_slug}/')
+        self.assertEqual(del_res.status_code, 200)
+
+        # 5. Confirmar eliminación
+        lookup = self.client.get(f'/api/v1/products/{new_slug}/')
+        self.assertEqual(lookup.status_code, 404)
+
+    def test_new_product_has_no_default_rating_and_can_be_reviewed(self):
+        """Verifica que los productos nuevos no tienen rating por defecto y los compradores pueden evaluarlos."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.seller_token}')
+        create_res = self.client.post('/api/v1/products/', {
+            'title': 'Smartband Fit Pulse 5',
+            'price': 29990,
+            'description': 'Banda inteligente para deporte',
+            'caracteristicas_ads': self.valid_ads_text,
+            'stock': 15,
+            'category': str(self.category.id)
+        })
+        self.assertEqual(create_res.status_code, 201)
+        prod_data = create_res.json()['data']
+        slug = prod_data['slug']
+
+        # El producto nuevo no debe tener rating predeterminado
+        self.assertIsNone(prod_data.get('rating'))
+        self.assertEqual(prod_data.get('reviews_count'), 0)
+
+        # Un comprador evalúa el pedido
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.buyer_token}')
+        review_res = self.client.post(f'/api/v1/products/{slug}/review/', {
+            'rating': 5,
+            'comment': 'Excelente compra, despacho súper rápido.'
+        })
+        self.assertEqual(review_res.status_code, 201)
+        self.assertEqual(review_res.json()['data']['updated_rating'], 5.0)
+        self.assertEqual(review_res.json()['data']['reviews_count'], 1)
+
+    def test_register_official_store_and_exposure_in_product(self):
+        """Verifica que el vendedor puede registrar su tienda oficial y se expone con URL en el producto."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.seller_token}')
+        store_res = self.client.post('/api/v1/auth/register-store/', {
+            'store_name': 'Inacap Store Oficial',
+            'store_url': 'https://tiendaoficial.cl'
+        })
+        self.assertEqual(store_res.status_code, 200)
+        self.assertTrue(store_res.json()['data']['is_official_store'])
+        self.assertEqual(store_res.json()['data']['official_store_name'], 'Inacap Store Oficial')
+
+        # Al consultar un producto del vendedor, se expone la tienda oficial y su URL
+        create_res = self.client.post('/api/v1/products/', {
+            'title': 'Notebook Pro Inacap',
+            'price': 599990,
+            'description': 'Laptop institucional',
+            'caracteristicas_ads': self.valid_ads_text,
+            'stock': 3,
+            'category': str(self.category.id)
+        })
+        slug = create_res.json()['data']['slug']
+
+        prod_res = self.client.get(f'/api/v1/products/{slug}/')
+        self.assertEqual(prod_res.status_code, 200)
+        data = prod_res.json()['data']
+        self.assertTrue(data.get('is_official_store'))
+        self.assertEqual(data.get('seller_official_store_name'), 'Inacap Store Oficial')
+        self.assertEqual(data.get('seller_official_store_url'), 'https://tiendaoficial.cl')

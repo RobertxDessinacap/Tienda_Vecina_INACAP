@@ -6,8 +6,10 @@ from apps.accounts.serializers import (
     UserRegistrationSerializer,
     LoginSerializer,
     UserMeSerializer,
-    UserProfileSerializer
+    UserProfileSerializer,
+    RegisterStoreSerializer
 )
+from apps.accounts.permissions import IsSellerOrAdmin
 
 class RegisterAPIView(APIView):
     """Registro con creación automática de Persona, UserProfile y UserRol."""
@@ -100,3 +102,29 @@ class UpgradeToSellerAPIView(APIView):
                 "user_profile": UserProfileSerializer(user.user_profile).data
             }
         }, status=status.HTTP_200_OK)
+
+
+class RegisterStoreAPIView(APIView):
+    """
+    Permite a un vendedor registrar o actualizar su Tienda Oficial (nombre comercial y URL).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSellerOrAdmin]
+
+    def post(self, request):
+        serializer = RegisterStoreSerializer(data=request.data)
+        if serializer.is_valid():
+            store_name = serializer.validated_data['store_name']
+            store_url = serializer.validated_data.get('store_url', '')
+
+            profile = request.user.user_profile
+            profile.is_official_store = True
+            profile.official_store_name = store_name
+            profile.official_store_url = store_url
+            profile.save(update_fields=['is_official_store', 'official_store_name', 'official_store_url'])
+
+            return Response({
+                "status": "success",
+                "message": f"¡Tienda oficial '{store_name}' registrada exitosamente!",
+                "data": UserProfileSerializer(profile).data
+            }, status=status.HTTP_200_OK)
+        return Response({"status": "fail", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)

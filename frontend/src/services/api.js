@@ -26,10 +26,19 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Clear token if invalid or expired
-      localStorage.removeItem('inacap_auth_token')
-      localStorage.removeItem('inacap_auth_user')
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      const detail = String(error.response.data?.detail || error.response.data?.message || '').toLowerCase()
+      if (
+        error.response.status === 401 ||
+        detail.includes('token') ||
+        detail.includes('sesión') ||
+        detail.includes('expirado')
+      ) {
+        // Limpiar credenciales obsoletas o expiradas
+        localStorage.removeItem('inacap_auth_token')
+        localStorage.removeItem('inacap_auth_user')
+        window.dispatchEvent(new CustomEvent('inacap:auth-expired'))
+      }
     }
     return Promise.reject(error)
   }

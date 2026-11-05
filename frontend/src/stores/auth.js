@@ -132,6 +132,32 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    async checkAuth() {
+      if (!this.token) return
+      try {
+        const response = await apiClient.get('/auth/me/')
+        if (response.data?.data) {
+          this.user = response.data.data
+          localStorage.setItem('inacap_auth_user', JSON.stringify(this.user))
+        }
+      } catch (err) {
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          this.logout()
+        }
+      }
+    },
+
+    initAuth() {
+      if (typeof window !== 'undefined') {
+        window.addEventListener('inacap:auth-expired', () => {
+          this.logout()
+        })
+      }
+      if (this.token) {
+        this.checkAuth()
+      }
+    },
+
     logout() {
       this.user = null
       this.token = null

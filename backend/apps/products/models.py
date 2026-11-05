@@ -73,8 +73,9 @@ class Product(models.Model):
         related_name='products'
     )
 
-    rating = models.DecimalField(max_digits=3, decimal_places=1, default=4.8)
-    reviews_count = models.PositiveIntegerField(default=15)
+    # Valoración real: los productos nuevos nacen sin valoración predeterminada
+    rating = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True, default=None)
+    reviews_count = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -111,3 +112,38 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.title} (${self.price})"
+
+
+class ProductReview(models.Model):
+    """
+    Evaluación de compra realizada por un comprador a un producto.
+    Calcula dinámicamente la valoración real del producto.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    user_profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='product_reviews')
+    rating = models.PositiveSmallIntegerField(help_text="Calificación de 1 a 5 estrellas")
+    comment = models.TextField(blank=True, default='', verbose_name="Comentario u Opinión")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Evaluación de Producto'
+        verbose_name_plural = 'Evaluaciones de Productos'
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Recalcular dinámicamente el promedio y conteo del producto
+        reviews = self.product.reviews.all()
+        count = reviews.count()
+        if count > 0:
+            avg = sum(r.rating for r in reviews) / count
+            self.product.rating = round(avg, 1)
+            self.product.reviews_count = count
+        else:
+            self.product.rating = None
+            self.product.reviews_count = 0
+        self.product.save(update_fields=['rating', 'reviews_count'])
+
+    def __str__(self):
+        return f"{self.rating}★ para {self.product.title} por {self.user_profile.public_alias}"
