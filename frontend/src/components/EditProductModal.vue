@@ -7,6 +7,9 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Trash2,
+  Plus,
   HelpCircle,
   Image as ImageIcon,
   ExternalLink,
@@ -29,9 +32,8 @@ const form = ref({
   installments: 6,
 })
 
-const selectedFile = ref(null)
-const previewUrl = ref(null)
-const currentImageUrl = ref(null)
+const photos = ref([])
+const confirmDeleteId = ref(null)
 const fileError = ref(null)
 const localError = ref(null)
 const isSubmitting = ref(false)
@@ -54,9 +56,26 @@ watch(
         free_shipping: !!prod.free_shipping,
         installments: prod.installments || 6,
       }
-      currentImageUrl.value = prod.display_image_url || prod.image_url
-      selectedFile.value = null
-      previewUrl.value = null
+      photos.value = []
+      if (prod.images && Array.isArray(prod.images) && prod.images.length > 0) {
+        photos.value = prod.images.map((u, i) => ({
+          id: `existing-${i}`,
+          url: u,
+          file: null,
+          isExisting: true,
+        }))
+      } else if (prod.display_image_url || prod.image_url) {
+        const u = prod.display_image_url || prod.image_url
+        photos.value = [
+          {
+            id: 'existing-0',
+            url: u,
+            file: null,
+            isExisting: true,
+          },
+        ]
+      }
+      confirmDeleteId.value = null
       fileError.value = null
       localError.value = null
     }
@@ -86,28 +105,50 @@ function onAdsInput(e) {
   })
 }
 
-function handleFileSelect(e) {
-  const file = e.target.files[0]
-  if (!file) return
+function promptDelete(id) {
+  confirmDeleteId.value = id
+}
 
+function cancelDelete() {
+  confirmDeleteId.value = null
+}
+
+function confirmDelete(id) {
+  photos.value = photos.value.filter((p) => p.id !== id)
+  confirmDeleteId.value = null
+}
+
+function handleFilesSelect(e) {
+  const files = Array.from(e.target.files || [])
+  if (!files.length) return
   fileError.value = null
-  const allowed = ['image/jpeg', 'image/png', 'image/webp']
-  if (!allowed.includes(file.type)) {
-    fileError.value = 'Formato no admitido. Debe ser JPG, PNG o WEBP.'
-    return
-  }
 
-  // Previsualización local
-  selectedFile.value = file
-  previewUrl.value = URL.createObjectURL(file)
+  const allowed = ['.jpg', '.jpeg', '.png', '.webp']
+  for (const file of files) {
+    if (photos.value.length >= 5) {
+      fileError.value = 'Se alcanzó el límite máximo de 5 fotografías por publicación.'
+      break
+    }
+    const ext = '.' + file.name.split('.').pop().toLowerCase()
+    if (!allowed.includes(ext)) {
+      fileError.value = `Extensión '${ext}' no permitida. Solo se admiten: ${allowed.join(', ')}`
+      continue
+    }
+    photos.value.push({
+      id: 'file-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+      url: URL.createObjectURL(file),
+      file: file,
+      isExisting: false,
+    })
+  }
+  e.target.value = ''
 }
 
 function handleDrop(e) {
   e.preventDefault()
-  const file = e.dataTransfer.files[0]
-  if (file) {
-    const input = { target: { files: [file] } }
-    handleFileSelect(input)
+  const files = e.dataTransfer.files
+  if (files && files.length) {
+    handleFilesSelect({ target: { files } })
   }
 }
 
@@ -129,6 +170,11 @@ async function executeSave(redirectAfter = false) {
     return
   }
 
+  if (photos.value.length === 0) {
+    localError.value = 'Debes mantener al menos una fotografía para la publicación.'
+    return
+  }
+
   isSubmitting.value = true
 
   const formData = new FormData()
@@ -146,8 +192,19 @@ async function executeSave(redirectAfter = false) {
   formData.append('free_shipping', form.value.free_shipping)
   formData.append('installments', form.value.installments)
 
-  if (selectedFile.value) {
-    formData.append('image_file', selectedFile.value)
+  const existingUrls = []
+  photos.value.forEach((p) => {
+    if (p.file) {
+      formData.append('image_files', p.file)
+    } else if (p.url) {
+      existingUrls.push(p.url)
+    }
+  })
+  if (existingUrls.length > 0) {
+    formData.append('existing_images', JSON.stringify(existingUrls))
+    formData.append('image_url', existingUrls[0])
+  } else if (photos.value.length > 0 && photos.value[0].file) {
+    formData.append('image_file', photos.value[0].file)
   }
 
   const res = await productStore.updateProduct(form.value.slug, formData)
@@ -180,9 +237,6 @@ async function executeSave(redirectAfter = false) {
             <h3 class="text-base font-bold text-slate-900 leading-tight">
               Editar Publicación
             </h3>
-            <p class="text-[11px] text-slate-500 font-mono">
-              /producto/{{ form.slug }}
-            </p>
           </div>
         </div>
         <button
@@ -218,7 +272,7 @@ async function executeSave(redirectAfter = false) {
             class="w-full bg-slate-50 border border-brand-border focus:border-brand-accent focus:bg-white rounded-lg px-3.5 py-2 text-xs text-slate-800 focus:outline-none transition-colors"
           />
           <p class="text-[10px] text-slate-400">
-            Si modificas el título, la URL limpia (/producto/slug) se actualizará automáticamente.
+            Si modificas el título, se actualizará automáticamente en toda la plataforma.
           </p>
         </div>
 
@@ -338,50 +392,113 @@ async function executeSave(redirectAfter = false) {
           ></textarea>
         </div>
 
-        <!-- 6. Fotografía del Producto (Pillow 900x600) -->
+        <!-- 6. Fotografías de la Publicación (Hasta 5 fotos) -->
         <div class="space-y-2">
-          <label class="block text-xs font-bold text-slate-700">
-            Fotografía de la Publicación (Resolución exacta 900x600 y ≤ 1 MB)
-          </label>
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <ImageIcon class="w-4 h-4 text-brand-accent" />
+              Fotografías de la Publicación
+              <span class="text-xs font-semibold text-slate-500">({{ photos.length }}/5 fotos)</span>
+            </label>
+            <span
+              :class="[photos.length >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-brand-accent']"
+              class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            >
+              {{ photos.length >= 5 ? 'Máximo alcanzado (5/5)' : 'Hasta 5 fotos' }}
+            </span>
+          </div>
+          <p class="text-[10px] text-slate-500 leading-tight">
+            Pasa el cursor sobre cualquier fotografía para ver la opción de eliminarla con confirmación.
+          </p>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-            <!-- Current Image -->
-            <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-medium block">Imagen Actual:</span>
-              <div class="bg-slate-100 border border-brand-border rounded-lg aspect-[9/6] overflow-hidden flex items-center justify-center">
-                <img
-                  v-if="previewUrl || currentImageUrl"
-                  :src="previewUrl || currentImageUrl"
-                  alt="Vista previa"
-                  class="w-full h-full object-cover"
-                />
-                <span v-else class="text-xs text-slate-400">Sin imagen</span>
+          <!-- Photos Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 pt-1">
+            <!-- Photo Cards -->
+            <div
+              v-for="(photo, index) in photos"
+              :key="photo.id"
+              class="group relative aspect-[9/6] rounded-xl overflow-hidden border border-brand-border bg-slate-100 shadow-2xs"
+            >
+              <img
+                :src="photo.url"
+                :alt="`Foto ${index + 1}`"
+                class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+              />
+
+              <!-- Primary Badge -->
+              <div v-if="index === 0" class="absolute top-1.5 left-1.5 z-10 bg-brand-accent text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                Portada
+              </div>
+
+              <!-- Hover Overlay with Delete Option (Covers Entire Image) -->
+              <div
+                v-if="confirmDeleteId !== photo.id"
+                @click.stop="promptDelete(photo.id)"
+                class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-1 p-2 cursor-pointer z-10 text-white"
+              >
+                <div class="w-8 h-8 rounded-full bg-red-600/90 hover:bg-red-600 flex items-center justify-center shadow-md transition-transform hover:scale-110">
+                  <Trash2 class="w-4 h-4 text-white" />
+                </div>
+                <span class="text-[10px] font-bold text-white tracking-wide">Eliminar foto</span>
+              </div>
+
+              <!-- Confirmation Prompt Overlay (Covers Entire Image) -->
+              <div
+                v-else
+                @click.stop
+                class="absolute inset-0 bg-slate-900/95 p-2 flex flex-col items-center justify-center text-center gap-1.5 z-20 animate-in fade-in duration-150"
+              >
+                <AlertTriangle class="w-4 h-4 text-amber-400" />
+                <p class="text-[10px] font-bold text-white leading-tight">
+                  ¿Eliminar foto?
+                </p>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <button
+                    type="button"
+                    @click.stop="confirmDelete(photo.id)"
+                    class="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold rounded transition-colors cursor-pointer shadow-xs"
+                  >
+                    Sí
+                  </button>
+                  <button
+                    type="button"
+                    @click.stop="cancelDelete()"
+                    class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[9px] font-bold rounded transition-colors cursor-pointer"
+                  >
+                    No
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- Upload New Image Box -->
+            <!-- Add Photo Button Box (if < 5) -->
             <div
+              v-if="photos.length < 5"
+              @click="$refs.editFileInput.click()"
               @dragover.prevent
               @drop="handleDrop"
-              class="border-2 border-dashed border-brand-border hover:border-brand-accent rounded-xl p-4 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-blue-50/40 aspect-[9/6] flex flex-col items-center justify-center"
-              @click="$refs.fileInput.click()"
+              class="border-2 border-dashed border-brand-border hover:border-brand-accent rounded-xl aspect-[9/6] flex flex-col items-center justify-center text-center p-2 cursor-pointer bg-white/70 hover:bg-blue-50/50 transition-colors group"
             >
-              <input
-                ref="fileInput"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                class="hidden"
-                @change="handleFileSelect"
-              />
-              <Upload class="w-6 h-6 text-slate-400 mb-1" />
-              <span class="text-xs font-bold text-brand-accent block">
-                {{ selectedFile ? 'Cambiar archivo seleccionado' : 'Subir nueva imagen' }}
+              <div class="w-7 h-7 rounded-full bg-blue-50 group-hover:bg-blue-100 text-brand-accent flex items-center justify-center mb-1 transition-colors">
+                <Plus class="w-4 h-4" />
+              </div>
+              <span class="text-[11px] font-bold text-slate-700 group-hover:text-brand-accent transition-colors">
+                Agregar foto
               </span>
-              <span class="text-[10px] text-slate-400 block mt-0.5">
-                JPG, PNG o WEBP (Pillow normalizará a 900x600)
+              <span class="text-[9px] text-slate-400">
+                ({{ 5 - photos.length }} disponibles)
               </span>
             </div>
           </div>
+
+          <input
+            ref="editFileInput"
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+            @change="handleFilesSelect"
+          />
           <p v-if="fileError" class="text-xs text-red-600 font-medium">{{ fileError }}</p>
         </div>
 

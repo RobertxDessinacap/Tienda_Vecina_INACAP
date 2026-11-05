@@ -3,9 +3,12 @@ import { reactive, ref, computed } from 'vue'
 import {
   X,
   PlusCircle,
+  Plus,
   Upload,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Trash2,
   Sparkles,
   Zap,
   Star,
@@ -19,8 +22,16 @@ import { blockDangerousCharsOnKeypress, sanitizeInput, sanitizeEventInput } from
 const authStore = useAuthStore()
 const productStore = useProductStore()
 
-const selectedFile = ref(null)
-const previewImageSrc = ref('')
+// Lista de fotografías (hasta 5 fotos por producto)
+const photoList = ref([
+  {
+    id: 'default-1',
+    url: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=900&auto=format&fit=crop&q=80',
+    file: null,
+    isExisting: true,
+  },
+])
+const confirmDeleteId = ref(null)
 
 const formData = reactive({
   title: '',
@@ -57,21 +68,43 @@ const previewDiscount = computed(() => {
   return 0
 })
 
-function handleFileChange(event) {
-  const file = event.target.files?.[0]
-  if (!file) return
+function promptDelete(id) {
+  confirmDeleteId.value = id
+}
 
-  // Validar extensión
-  const allowed = ['.jpg', '.jpeg', '.png', '.webp']
-  const ext = '.' + file.name.split('.').pop().toLowerCase()
-  if (!allowed.includes(ext)) {
-    errorMessage.value = `Extensión '${ext}' no permitida por seguridad. Solo se admiten: ${allowed.join(', ')}`
-    return
-  }
+function cancelDelete() {
+  confirmDeleteId.value = null
+}
 
-  selectedFile.value = file
-  previewImageSrc.value = URL.createObjectURL(file)
+function confirmDelete(id) {
+  photoList.value = photoList.value.filter((p) => p.id !== id)
+  confirmDeleteId.value = null
+}
+
+function handleFilesChange(event) {
+  const files = Array.from(event.target.files || [])
+  if (!files.length) return
   errorMessage.value = ''
+
+  const allowed = ['.jpg', '.jpeg', '.png', '.webp']
+  for (const file of files) {
+    if (photoList.value.length >= 5) {
+      errorMessage.value = 'Se alcanzó el límite máximo de 5 fotografías por producto.'
+      break
+    }
+    const ext = '.' + file.name.split('.').pop().toLowerCase()
+    if (!allowed.includes(ext)) {
+      errorMessage.value = `Extensión '${ext}' no permitida. Solo se admiten: ${allowed.join(', ')}`
+      continue
+    }
+    photoList.value.push({
+      id: 'file-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+      url: URL.createObjectURL(file),
+      file: file,
+      isExisting: false,
+    })
+  }
+  event.target.value = ''
 }
 
 async function handleSubmit() {
@@ -95,10 +128,14 @@ async function handleSubmit() {
     errorMessage.value = `Las características en formato ADS deben contener MÁS DE 250 caracteres (actual: ${adsCharCount.value}). Faltan ${remainingAdsChars.value} caracteres.`
     return
   }
+  if (photoList.value.length === 0) {
+    errorMessage.value = 'Debes subir al menos una fotografía para publicar el producto.'
+    return
+  }
 
   submitting.value = true
 
-  // Enviar como FormData para soportar subida de archivo y procesamiento Pillow en backend
+  // Enviar como FormData para soportar subida de múltiples archivos (hasta 5)
   const data = new FormData()
   data.append('title', formData.title)
   data.append('description', formData.description)
@@ -114,10 +151,19 @@ async function handleSubmit() {
   data.append('free_shipping', formData.free_shipping)
   data.append('installments', formData.installments)
 
-  if (selectedFile.value) {
-    data.append('image_file', selectedFile.value)
-  } else {
-    data.append('image_url', formData.image_url)
+  const existingUrls = []
+  photoList.value.forEach((p) => {
+    if (p.file) {
+      data.append('image_files', p.file)
+    } else if (p.url) {
+      existingUrls.push(p.url)
+    }
+  })
+  if (existingUrls.length > 0) {
+    data.append('existing_images', JSON.stringify(existingUrls))
+    data.append('image_url', existingUrls[0])
+  } else if (photoList.value.length > 0 && photoList.value[0].file) {
+    data.append('image_file', photoList.value[0].file)
   }
 
   const result = await productStore.createProduct(data)
@@ -254,24 +300,110 @@ async function handleSubmit() {
             </div>
           </div>
 
-          <!-- Image Upload -->
-          <div class="bg-brand-primary-subtle p-3 rounded-xl border border-brand-primary-border space-y-2">
+          <!-- Image Upload (Up to 5 photos) -->
+          <div class="bg-brand-primary-subtle p-3.5 rounded-xl border border-brand-primary-border space-y-2.5">
             <div class="flex items-center justify-between">
-              <label class="block font-bold text-brand-primary-text">
-                Fotografía del Producto *
+              <label class="block font-bold text-brand-primary-text flex items-center gap-1.5">
+                <ImageIcon class="w-4 h-4 text-brand-accent" />
+                Fotografías del Producto
+                <span class="text-xs font-semibold text-slate-500">({{ photoList.length }}/5 fotos)</span>
               </label>
-              <span class="text-[10px] bg-brand-primary text-brand-primary-text font-bold px-2 py-0.5 rounded-full">
-                Imagen Oficial
+              <span
+                :class="[photoList.length >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-brand-primary text-brand-primary-text']"
+                class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              >
+                {{ photoList.length >= 5 ? 'Máximo alcanzado (5/5)' : 'Hasta 5 fotos' }}
               </span>
             </div>
             <p class="text-[10px] text-slate-600 leading-tight">
-              Sube una fotografía clara y nítida (.jpg, .jpeg, .png, .webp). La imagen se adaptará automáticamente para que luzca perfecta en la tienda.
+              Sube hasta 5 fotografías (.jpg, .jpeg, .png, .webp). Pasa el cursor sobre cualquier foto para ver la opción de eliminarla con confirmación.
             </p>
+
+            <!-- Photos Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 pt-1">
+              <!-- Photo Cards -->
+              <div
+                v-for="(photo, index) in photoList"
+                :key="photo.id"
+                class="group relative aspect-[9/6] rounded-xl overflow-hidden border border-brand-border bg-slate-100 shadow-2xs"
+              >
+                <img
+                  :src="photo.url"
+                  :alt="`Foto ${index + 1}`"
+                  class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                />
+
+                <!-- Primary Badge -->
+                <div v-if="index === 0" class="absolute top-1.5 left-1.5 z-10 bg-brand-accent text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                  Portada
+                </div>
+
+                <!-- Hover Overlay with Delete Option (Covers Entire Image) -->
+                <div
+                  v-if="confirmDeleteId !== photo.id"
+                  @click.stop="promptDelete(photo.id)"
+                  class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-1 p-2 cursor-pointer z-10 text-white"
+                >
+                  <div class="w-8 h-8 rounded-full bg-red-600/90 hover:bg-red-600 flex items-center justify-center shadow-md transition-transform hover:scale-110">
+                    <Trash2 class="w-4 h-4 text-white" />
+                  </div>
+                  <span class="text-[10px] font-bold text-white tracking-wide">Eliminar foto</span>
+                </div>
+
+                <!-- Confirmation Prompt Overlay (Covers Entire Image) -->
+                <div
+                  v-else
+                  @click.stop
+                  class="absolute inset-0 bg-slate-900/95 p-2 flex flex-col items-center justify-center text-center gap-1.5 z-20 animate-in fade-in duration-150"
+                >
+                  <AlertTriangle class="w-4 h-4 text-amber-400" />
+                  <p class="text-[10px] font-bold text-white leading-tight">
+                    ¿Eliminar foto?
+                  </p>
+                  <div class="flex items-center gap-1 mt-0.5">
+                    <button
+                      type="button"
+                      @click.stop="confirmDelete(photo.id)"
+                      class="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold rounded transition-colors cursor-pointer shadow-xs"
+                    >
+                      Sí
+                    </button>
+                    <button
+                      type="button"
+                      @click.stop="cancelDelete()"
+                      class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[9px] font-bold rounded transition-colors cursor-pointer"
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Add Photo Button Box (if < 5) -->
+              <div
+                v-if="photoList.length < 5"
+                @click="$refs.multiFileInput.click()"
+                class="border-2 border-dashed border-brand-border hover:border-brand-accent rounded-xl aspect-[9/6] flex flex-col items-center justify-center text-center p-2 cursor-pointer bg-white/70 hover:bg-blue-50/50 transition-colors group"
+              >
+                <div class="w-7 h-7 rounded-full bg-blue-50 group-hover:bg-blue-100 text-brand-accent flex items-center justify-center mb-1 transition-colors">
+                  <Plus class="w-4 h-4" />
+                </div>
+                <span class="text-[11px] font-bold text-slate-700 group-hover:text-brand-accent transition-colors">
+                  Agregar foto
+                </span>
+                <span class="text-[9px] text-slate-400">
+                  ({{ 5 - photoList.length }} disponibles)
+                </span>
+              </div>
+            </div>
+
             <input
+              ref="multiFileInput"
               type="file"
-              accept=".jpg,.jpeg,.png,.webp"
-              @change="handleFileChange"
-              class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-accent file:text-white hover:file:bg-brand-accent-hover cursor-pointer"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              class="hidden"
+              @change="handleFilesChange"
             />
           </div>
 

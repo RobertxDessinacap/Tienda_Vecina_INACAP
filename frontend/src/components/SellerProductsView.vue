@@ -260,11 +260,6 @@ function handleViewProduct(slug) {
                 >
                   {{ product.title }}
                 </h3>
-
-                <!-- Clean URL Slug Indicator -->
-                <p class="text-[10px] font-mono text-slate-400 mt-1 truncate" :title="`/producto/${product.slug}`">
-                  /producto/{{ product.slug }}
-                </p>
               </div>
 
               <!-- Price -->

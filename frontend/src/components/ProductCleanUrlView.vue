@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
 import { useLocationStore } from '../stores/location'
@@ -26,6 +26,30 @@ const locationStore = useLocationStore()
 const authStore = useAuthStore()
 
 const product = computed(() => productStore.selectedProduct)
+
+const selectedImageIndex = ref(0)
+watch(
+  () => product.value,
+  () => {
+    selectedImageIndex.value = 0
+  }
+)
+
+const productImages = computed(() => {
+  if (!product.value) return []
+  if (product.value.images && Array.isArray(product.value.images) && product.value.images.length > 0) {
+    return product.value.images
+  }
+  const u = product.value.display_image_url || product.value.image_url
+  return u ? [u] : []
+})
+
+const activeImageUrl = computed(() => {
+  if (productImages.value.length > 0) {
+    return productImages.value[selectedImageIndex.value] || productImages.value[0]
+  }
+  return product.value?.display_image_url || product.value?.image_url
+})
 
 const isOwner = computed(() => {
   if (!authStore.isAuthenticated || !product.value) return false
@@ -96,13 +120,31 @@ function handleBuyNow() {
         <!-- Image Container -->
         <div class="w-full aspect-[9/6] bg-brand-surface-subtle rounded-lg border border-brand-border p-4 flex items-center justify-center overflow-hidden shadow-2xs relative">
           <img
-            :src="product.display_image_url || product.image_url"
+            :src="activeImageUrl"
             :alt="product.title"
             class="max-w-full max-h-full object-contain hover:scale-105 transition-transform duration-300"
           />
           <div v-if="product.discount_percentage > 0" class="absolute top-3 left-3 bg-brand-accent text-white font-black text-xs px-2.5 py-1 rounded-full shadow-2xs">
             {{ product.discount_percentage }}% OFF
           </div>
+        </div>
+
+        <!-- Thumbnails Gallery (if > 1 image) -->
+        <div v-if="productImages.length > 1" class="w-full flex items-center gap-2 overflow-x-auto py-1">
+          <button
+            v-for="(img, idx) in productImages"
+            :key="idx"
+            type="button"
+            @click="selectedImageIndex = idx"
+            :class="[
+              selectedImageIndex === idx
+                ? 'border-brand-accent ring-2 ring-brand-accent/30'
+                : 'border-brand-border hover:border-slate-400 opacity-70 hover:opacity-100'
+            ]"
+            class="w-16 h-12 rounded-lg border-2 overflow-hidden bg-brand-surface-subtle shrink-0 transition-all cursor-pointer p-0.5"
+          >
+            <img :src="img" :alt="`Miniatura ${idx + 1}`" class="w-full h-full object-cover rounded" />
+          </button>
         </div>
 
         <div class="w-full flex items-center justify-between text-xs text-slate-500 bg-brand-surface-subtle p-2.5 rounded-lg border border-brand-border">
