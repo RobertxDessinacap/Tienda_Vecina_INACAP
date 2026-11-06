@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   X,
   Zap,
@@ -15,6 +15,30 @@ import { useProductStore } from '../stores/products'
 
 const productStore = useProductStore()
 const product = computed(() => productStore.selectedProduct)
+
+const selectedImageIndex = ref(0)
+watch(
+  () => product.value,
+  () => {
+    selectedImageIndex.value = 0
+  }
+)
+
+const productImages = computed(() => {
+  if (!product.value) return []
+  if (product.value.images && Array.isArray(product.value.images) && product.value.images.length > 0) {
+    return product.value.images
+  }
+  const u = product.value.display_image_url || product.value.image_url
+  return u ? [u] : []
+})
+
+const activeImageUrl = computed(() => {
+  if (productImages.value.length > 0) {
+    return productImages.value[selectedImageIndex.value] || productImages.value[0]
+  }
+  return product.value?.display_image_url || product.value?.image_url
+})
 
 function formatCLP(amount) {
   if (amount == null) return '$ 0'
@@ -53,10 +77,28 @@ function handleBuy() {
         <div class="md:col-span-7 flex flex-col items-center justify-center bg-brand-surface-subtle rounded-xl p-6 border border-brand-border">
           <div class="w-full aspect-square max-h-[380px] flex items-center justify-center">
             <img
-              :src="product.image_url"
+              :src="activeImageUrl"
               :alt="product.title"
               class="max-w-full max-h-full object-contain hover:scale-105 transition-transform duration-300"
             />
+          </div>
+
+          <!-- Thumbnails (if > 1 photo) -->
+          <div v-if="productImages.length > 1" class="w-full flex items-center justify-center gap-2 mt-3 overflow-x-auto py-1">
+            <button
+              v-for="(img, idx) in productImages"
+              :key="idx"
+              type="button"
+              @click="selectedImageIndex = idx"
+              :class="[
+                selectedImageIndex === idx
+                  ? 'border-brand-accent ring-2 ring-brand-accent/30'
+                  : 'border-brand-border hover:border-slate-400 opacity-70 hover:opacity-100'
+              ]"
+              class="w-12 h-10 rounded-md border-2 overflow-hidden bg-brand-surface shrink-0 transition-all cursor-pointer p-0.5"
+            >
+              <img :src="img" :alt="`Foto ${idx + 1}`" class="w-full h-full object-cover rounded" />
+            </button>
           </div>
           <!-- Security guarantee seal -->
           <div class="mt-4 flex items-center gap-2 text-xs text-brand-primary-text bg-brand-surface px-3 py-1.5 rounded-full border border-brand-primary-border shadow-2xs">

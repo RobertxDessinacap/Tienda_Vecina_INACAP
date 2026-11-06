@@ -41,6 +41,7 @@ class ProductSerializer(serializers.ModelSerializer):
     seller_official_store_url = serializers.CharField(source='seller_profile.official_store_url', read_only=True)
     discount_percentage = serializers.ReadOnlyField()
     display_image_url = serializers.ReadOnlyField()
+    images = serializers.ListField(child=serializers.CharField(), source='all_images', read_only=True)
 
     class Meta:
         model = Product
@@ -58,6 +59,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'category_name',
             'image',
             'image_url',
+            'images',
             'display_image_url',
             'free_shipping',
             'installments',
@@ -122,29 +124,88 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
             )
         return cleaned
 
+    def _extract_and_process_images(self, request, validated_data, instance=None):
+        import json
+        from django.core.files.storage import default_storage
+
+        image_files = []
+        if request and hasattr(request, 'FILES'):
+            image_files = request.FILES.getlist('image_files')
+            if not image_files and 'image_file' in request.FILES:
+                image_files = [request.FILES['image_file']]
+
+        existing_images = []
+        if request and hasattr(request, 'data'):
+            raw = request.data.getlist('existing_images') if hasattr(request.data, 'getlist') else request.data.get('existing_images')
+            if isinstance(raw, str):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        existing_images = [str(x).strip() for x in parsed if x]
+                    elif parsed:
+                        existing_images = [str(parsed).strip()]
+                except Exception:
+                    existing_images = [raw.strip()] if raw.strip() else []
+            elif isinstance(raw, list):
+                for item in raw:
+                    if isinstance(item, str) and item.startswith('['):
+                        try:
+                            sub = json.loads(item)
+                            if isinstance(sub, list):
+                                existing_images.extend([str(x).strip() for x in sub if x])
+                                continue
+                        except Exception:
+                            pass
+                    if item:
+                        existing_images.append(str(item).strip())
+
+        if not existing_images and not instance:
+            single_url = validated_data.get('image_url')
+            if single_url:
+                existing_images.append(single_url)
+
+        new_urls = []
+        primary_file = None
+        for idx, f in enumerate(image_files[:5]):
+            proc = process_and_secure_product_image(f)
+            if idx == 0 and not existing_images:
+                primary_file = proc
+            path = default_storage.save(f"productos/{proc.name}", proc)
+            url = default_storage.url(path)
+            new_urls.append(url)
+
+        combined = [img for img in (existing_images + new_urls) if img][:5]
+        return combined, primary_file
+
     def create(self, validated_data):
         request = self.context.get('request')
-        image_file = validated_data.pop('image_file', None)
-
-        # Procesamiento y blindaje de la imagen a 900x600 y max 1 MB
-        processed_image = None
-        if image_file:
-            processed_image = process_and_secure_product_image(image_file)
+        validated_data.pop('image_file', None)
+        combined_images, primary_file = self._extract_and_process_images(request, validated_data)
 
         # Asignación al UserProfile del usuario vendedor
         seller_profile = request.user.user_profile
         product = Product.objects.create(
             seller_profile=seller_profile,
-            image=processed_image,
+            image=primary_file,
+            images=combined_images,
             **validated_data
         )
+        if combined_images and not product.image:
+            product.image_url = combined_images[0]
+            product.save(update_fields=['image_url'])
         return product
 
     def update(self, instance, validated_data):
         from django.utils.text import slugify
-        image_file = validated_data.pop('image_file', None)
-        if image_file:
-            instance.image = process_and_secure_product_image(image_file)
+        request = self.context.get('request')
+        validated_data.pop('image_file', None)
+        combined_images, primary_file = self._extract_and_process_images(request, validated_data, instance=instance)
+
+        if combined_images:
+            instance.images = combined_images
+            instance.image_url = combined_images[0]
+        if primary_file:
+            instance.image = primary_file
 
         old_title = instance.title
         for attr, value in validated_data.items():

@@ -60,6 +60,12 @@ class Product(models.Model):
         max_length=1000,
         default='https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600'
     )
+    # Galería de imágenes (hasta 5 fotos máximo por producto)
+    images = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de URLs de imágenes del producto (hasta 5 fotos)"
+    )
 
     stock = models.PositiveIntegerField(default=1)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
@@ -106,9 +112,27 @@ class Product(models.Model):
 
     @property
     def display_image_url(self):
+        if self.images and isinstance(self.images, list) and len(self.images) > 0 and self.images[0]:
+            return self.images[0]
         if self.image:
             return self.image.url
         return self.image_url
+
+    @property
+    def all_images(self):
+        imgs = []
+        if self.images and isinstance(self.images, list):
+            for u in self.images:
+                if u and u not in imgs:
+                    imgs.append(u)
+        main_img = None
+        if self.image:
+            main_img = self.image.url
+        elif self.image_url:
+            main_img = self.image_url
+        if main_img and main_img not in imgs:
+            imgs.insert(0, main_img)
+        return imgs[:5]
 
     def __str__(self):
         return f"{self.title} (${self.price})"
