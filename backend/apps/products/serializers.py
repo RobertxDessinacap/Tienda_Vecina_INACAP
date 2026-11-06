@@ -1,7 +1,7 @@
 import re
 from rest_framework import serializers
 from django.utils.html import escape
-from apps.products.models import Product, Category
+from apps.products.models import Product, Category, ProductReview
 from apps.accounts.serializers import UserProfileSerializer
 from apps.products.utils import process_and_secure_product_image
 
@@ -232,7 +232,6 @@ class ProductReviewSerializer(serializers.ModelSerializer):
     buyer_alias = serializers.CharField(source='user_profile.public_alias', read_only=True)
 
     class Meta:
-        from apps.products.models import ProductReview
         model = ProductReview
         fields = ['id', 'rating', 'comment', 'buyer_alias', 'created_at']
         read_only_fields = ['id', 'buyer_alias', 'created_at']
