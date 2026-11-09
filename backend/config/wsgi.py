@@ -1,4 +1,4 @@
-"""WSGI config for Inacap E-Commerce."""
+"""WSGI config for Tienda Vecina."""
 import os
 from django.core.wsgi import get_wsgi_application
 

@@ -58,11 +58,11 @@ function handleSellClick() {
         <!-- Logo -->
         <div class="flex items-center gap-2 cursor-pointer select-none" @click="productStore.goToCatalog()">
           <div class="w-10 h-10 bg-brand-surface rounded-lg flex items-center justify-center shadow-xs border border-brand-border">
-            <span class="text-xl font-black text-brand-accent tracking-tighter">IN</span>
+            <span class="text-xl font-black text-brand-accent tracking-tighter">TV</span>
           </div>
           <div class="leading-tight">
-            <span class="text-xl font-extrabold text-brand-primary-text tracking-tight block">inacap</span>
-            <span class="text-[10px] font-bold text-brand-primary-text/80 uppercase tracking-widest block -mt-1">e-commerce</span>
+            <span class="text-xl font-extrabold text-brand-primary-text tracking-tight block">Tienda</span>
+            <span class="text-[10px] font-bold text-brand-primary-text/80 uppercase tracking-widest block -mt-1">Vecina</span>
           </div>
         </div>
 

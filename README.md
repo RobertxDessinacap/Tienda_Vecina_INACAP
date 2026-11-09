@@ -1,4 +1,4 @@
-# Inacap E-Commerce
+# Tienda Vecina
 
 Plataforma de comercio electrónico moderna, segura y de alto rendimiento diseñada con la estética limpia y amigable de MercadoLibre / Mercado Pago. Desarrollada con **Django** (PostgreSQL ORM) en el Backend y **Vue 3** (Vite + Tailwind CSS + Pinia) en el Frontend.
 
@@ -133,7 +133,7 @@ El frontend es una aplicación de página única (SPA) desarrollada sobre **Vue 
 
 ## 3. Marco Integral de Seguridad (ISO 27001 & OWASP Top 10)
 
-| Control / Pilar de Seguridad | Implementación en Inacap E-Commerce | Estándar Cumplido |
+| Control / Pilar de Seguridad | Implementación en Tienda Vecina | Estándar Cumplido |
 | :--- | :--- | :--- |
 | **Aislamiento de Secretos** | Cero contraseñas o llaves en `settings.py`. 100% en `.env` (ignorado en `.gitignore`). Plantilla documentada `example.env`. | ISO 27001 A.8.9 |
 | **Desacoplamiento de Identidades** | Jerarquía `Userdjango` $\leftrightarrow$ `UserProfile` $\leftrightarrow$ `Persona`. Los compradores nunca ven correos ni datos civiles, solo el alias público. | ISO 27001 A.8.2 |

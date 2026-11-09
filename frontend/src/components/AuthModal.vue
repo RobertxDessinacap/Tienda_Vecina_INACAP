@@ -84,7 +84,7 @@ function fillDemo(email, pass, role = null) {
         <div class="flex items-center gap-2">
           <Lock class="w-5 h-5 text-brand-primary-text" />
           <h2 class="text-base font-bold text-slate-900">
-            {{ activeTab === 'login' ? 'Iniciar Sesión Segura' : 'Crear Cuenta en Inacap' }}
+            {{ activeTab === 'login' ? 'Iniciar Sesión Segura' : 'Crear Cuenta en Tienda Vecina' }}
           </h2>
         </div>
         <button

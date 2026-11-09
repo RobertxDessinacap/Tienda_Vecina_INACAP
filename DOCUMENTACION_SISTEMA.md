@@ -1,4 +1,4 @@
-# Documentación Técnica Integral: Inacap E-Commerce
+# Documentación Técnica Integral: Tienda Vecina
 
 > **Nota para Sesiones de IA y Desarrolladores:** Este documento técnico está completamente **indexado** con anclas de navegación semántica (`#sec-X`). Utiliza el índice para saltar de inmediato a cualquier sección arquitectónica, reglas de negocio o estándares de seguridad.
 
@@ -356,7 +356,7 @@ Ubicación del código: [`backend/apps/products/utils.py`](file:///C:/Users/Robe
 <a id="sec-4-2-pixel-bombs"></a>
 ### 4.2. Defensa contra Bombas de Descompresión (Pixel Bombs / Decompression Bombs)
 - **Vulnerabilidad:** Un atacante puede crear un archivo de imagen de unos pocos kilobytes comprimidos que, al expandirse en memoria RAM, requiera gigabytes de almacenamiento (por ejemplo, una imagen de $50.000 \times 50.000$ píxeles), provocando un colapso por denegación de servicio (DoS / Out-of-Memory).
-- **Mitigación en Inacap E-Commerce:** En [`backend/apps/products/utils.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/products/utils.py) se define el umbral de seguridad estricto `Image.MAX_IMAGE_PIXELS = 10_000_000`. Pillow rechaza de inmediato con una excepción `DecompressionBombError` cualquier archivo que exceda 10 megapíxeles antes de reservar memoria RAM.
+- **Mitigación en Tienda Vecina:** En [`backend/apps/products/utils.py`](file:///C:/Users/Rober/inacap%20e-commerce/backend/apps/products/utils.py) se define el umbral de seguridad estricto `Image.MAX_IMAGE_PIXELS = 10_000_000`. Pillow rechaza de inmediato con una excepción `DecompressionBombError` cualquier archivo que exceda 10 megapíxeles antes de reservar memoria RAM.
 
 <a id="sec-5-caracteristicas-ads"></a>
 ## 5. Características ADS (+250 Caracteres) y URL Limpia
@@ -411,7 +411,7 @@ El modal de edición (`EditProductModal.vue`) incluye dos opciones de guardado r
 ### Vulnerabilidad Tradicional:
 Si una tienda calcula el total a pagar en JavaScript en el navegador del cliente y envía el precio final a la API, cualquier usuario puede interceptar la petición con las herramientas de desarrollador (F12) o un proxy HTTP y alterar el precio a `$1`.
 
-### Implementación Segura en Inacap E-Commerce:
+### Implementación Segura en Tienda Vecina:
 1. El frontend envía **únicamente** la lista de identificadores y cantidades deseadas:
    ```json
    {
@@ -615,7 +615,7 @@ Para garantizar que cualquier otra sesión de Inteligencia Artificial o nuevo de
 
 ### Estructura Comentada de `example.env`:
 ```env
-# INACAP E-COMMERCE - PLANTILLA example.env
+# TIENDA VECINA - PLANTILLA example.env
 
 # 1. Núcleo Django
 DEBUG=True
@@ -743,7 +743,7 @@ El backend se estructura en aplicaciones independientes dentro del directorio `a
 <a id="sec-14-1-diferencias-conceptuales"></a>
 ### 14.1. Diferencias Conceptuales: Gobernanza (ISO 27001) vs Riesgos de Aplicación (OWASP)
 
-Para comprender con exactitud técnica la postura de seguridad de **Inacap E-Commerce**, es fundamental distinguir el alcance de ambos estándares:
+Para comprender con exactitud técnica la postura de seguridad de **Tienda Vecina**, es fundamental distinguir el alcance de ambos estándares:
 
 1. **ISO/IEC 27001:2022:** Es un estándar internacional para el establecimiento, implementación, mantenimiento y mejora continua de un **Sistema de Gestión de Seguridad de la Información (SGSI / ISMS)**.
    - Su foco es la **gobernanza integral del riesgo**: evalúa políticas organizacionales, gestión de personas, seguridad física y controles tecnológicos (93 controles agrupados en las 4 cláusulas del Anexo A).
@@ -755,7 +755,7 @@ Para comprender con exactitud técnica la postura de seguridad de **Inacap E-Com
 <a id="sec-14-2-cumplimiento-owasp"></a>
 ### 14.2. Matriz de Cumplimiento Técnico OWASP Top 10:2021 (Por Qué Cumple)
 
-| Código OWASP | Riesgo Crítico | ¿Por Qué Cumple Inacap E-Commerce? (Justificación Técnica en el Código) | Estado |
+| Código OWASP | Riesgo Crítico | ¿Por Qué Cumple Tienda Vecina? (Justificación Técnica en el Código) | Estado |
 | :--- | :--- | :--- | :-: |
 | **A01:2021** | **Broken Access Control (Pérdida de Control de Acceso)** | - **RBAC Estricto:** Permisos verificados mediante `IsSellerOrAdmin` en endpoints mutantes.<br>- **Desacoplamiento de Identidad:** El modelo `UserProfile` actúa como proxy; ningún cliente puede ver órdenes ajenas.<br>- **Claves UUIDv4:** Todas las URLs y modelos usan identificadores aleatorios de 128 bits, impidiendo ataques de enumeración e IDOR (`/producto/<slug>` y UUIDs en base de datos). | **Cumple** |
 | **A02:2021** | **Cryptographic Failures (Fallas Criptográficas)** | - **Cifrado de Contraseñas:** Algoritmo PBKDF2 con hash SHA-256 y 260.000 iteraciones (estándar Django).<br>- **Tokens JWT Firmados:** Firma HMAC-SHA256 con llave secreta segregada (`JWT_SECRET_KEY`) y caducidad de 24h.<br>- **Tokenización Transbank:** La tienda **nunca procesa, almacena ni toca números de tarjeta ni CVV**. Toda la transacción bancaria viaja cifrada hacia Webpay Plus. | **Cumple** |

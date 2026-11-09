@@ -99,7 +99,7 @@ onMounted(async () => {
               <h2 class="text-base font-bold text-slate-900 tracking-tight">
                 <span v-if="productStore.searchQuery">Resultados para "{{ productStore.searchQuery }}"</span>
                 <span v-else-if="productStore.activeCategory">Categoría: {{ productStore.activeCategory }}</span>
-                <span v-else>Catálogo Oficial en Mercado Inacap</span>
+                <span v-else>Catálogo Oficial en Tienda Vecina</span>
               </h2>
               <p class="text-xs text-slate-500">
                 {{ productStore.products.length }} productos disponibles con despacho inmediato
@@ -256,10 +256,10 @@ onMounted(async () => {
               Medios de Pago & Transbank
             </button>
             <button @click="infoModalRef?.open('help')" class="hover:text-slate-900 hover:underline cursor-pointer transition-colors">
-              Centro de Ayuda Inacap
+              Centro de Ayuda Tienda Vecina
             </button>
           </div>
-          <p>© 2026 Inacap E-Commerce Inc. Todos los derechos reservados. Tu tienda online segura en Chile.</p>
+          <p>© 2026 Tienda Vecina Inc. Todos los derechos reservados. Tu tienda online segura en Chile.</p>
         </div>
       </div>
     </footer>

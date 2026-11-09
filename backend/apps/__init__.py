@@ -1,1 +1,1 @@
-"""Inacap E-Commerce Modular Apps Package."""
+"""Tienda Vecina Modular Apps Package."""

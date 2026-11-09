@@ -1,5 +1,5 @@
 """
-Inacap E-Commerce Master URL Configuration.
+Tienda Vecina Master URL Configuration.
 Endpoints mapped cleanly under /api/v1/ prefix.
 """
 from django.contrib import admin

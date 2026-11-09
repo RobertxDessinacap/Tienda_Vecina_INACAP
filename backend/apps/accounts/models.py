@@ -247,6 +247,6 @@ def ensure_persona_and_user_profile(sender, instance, created, **kwargs):
     nombre_rol, codigo_rol = role_mapping.get(instance.role, ('Cliente', 'BUYER'))
     rol_obj, _ = Rol.objects.get_or_create(
         codigo=codigo_rol,
-        defaults={'nombre': nombre_rol, 'descripcion': f'Rol {nombre_rol} en Inacap E-Commerce'}
+        defaults={'nombre': nombre_rol, 'descripcion': f'Rol {nombre_rol} en Tienda Vecina'}
     )
     UserRol.objects.get_or_create(user_profile=profile, rol=rol_obj)
