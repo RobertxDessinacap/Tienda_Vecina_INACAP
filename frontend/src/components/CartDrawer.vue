@@ -80,7 +80,7 @@ function handleProceedToPayment() {
           </div>
           <h3 class="text-sm font-bold text-slate-800">Tu carrito está vacío</h3>
           <p class="text-xs text-slate-500 max-w-xs">
-            ¿No sabes qué comprar? ¡Miles de productos con despacho gratis te están esperando en Inacap E-Commerce!
+            ¿No sabes qué comprar? ¡Miles de productos con despacho gratis te están esperando en Tienda Vecina!
           </p>
           <button
             @click="cartStore.closeCart"

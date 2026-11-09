@@ -54,7 +54,7 @@ async function handleUpgrade() {
           </div>
           <div>
             <h2 class="text-sm font-bold text-slate-900 leading-tight">
-              ¡Comienza a Vender en Mercado Inacap!
+              ¡Comienza a Vender en Tienda Vecina!
             </h2>
             <span class="text-[10px] text-brand-primary-text font-semibold">
               Activa tu perfil de vendedor en 1 clic

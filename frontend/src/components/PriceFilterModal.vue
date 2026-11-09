@@ -132,7 +132,7 @@ function clearAllAndClose() {
               Filtrar Catálogo
             </h2>
             <span class="text-[10px] text-brand-primary-text font-semibold">
-              Personaliza tu búsqueda en Mercado Inacap
+              Personaliza tu búsqueda en Tienda Vecina
             </span>
           </div>
         </div>

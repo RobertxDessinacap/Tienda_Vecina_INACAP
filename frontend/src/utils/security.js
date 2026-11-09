@@ -1,5 +1,5 @@
 /**
- * Inacap E-Commerce Security & Anti-XSS Engine
+ * Tienda Vecina Security & Anti-XSS Engine
  * 
  * Implementación de defensas en profundidad conforme a estándares OWASP Top 10 y Cheat Sheet:
  * 1. Restricción preventiva de caracteres peligrosos en inputs ([ } * < > \ ; ^ $ ~ | `).

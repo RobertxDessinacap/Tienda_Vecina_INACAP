@@ -1,5 +1,5 @@
 """
-Django settings for Inacap E-Commerce.
+Django settings for Tienda Vecina.
 Adhering to ISO/IEC 27001 Security Standard & Clean Architecture.
 All sensitive configurations, database credentials and secrets are loaded strictly from .env.
 """

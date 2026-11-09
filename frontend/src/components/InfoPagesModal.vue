@@ -40,7 +40,7 @@ defineExpose({ open, close })
         <div class="flex items-center gap-2">
           <ShieldCheck class="w-5 h-5 text-gray-900" />
           <h2 class="text-base font-bold text-gray-900">
-            Centro de Información y Ayuda - Inacap E-Commerce
+            Centro de Información y Ayuda - Tienda Vecina
           </h2>
         </div>
         <button
@@ -101,7 +101,7 @@ defineExpose({ open, close })
             <div class="bg-gray-50 p-3.5 rounded-lg border border-gray-200">
               <h4 class="font-bold text-gray-900 mb-1">1. Objeto y Alcance de la Plataforma</h4>
               <p>
-                Inacap E-Commerce es un portal de comercio electrónico seguro que conecta a compradores y vendedores autorizados para la adquisición de productos tecnológicos, computación, moda y hogar en Chile. Al navegar o comprar en el sitio, el usuario acepta de manera íntegra estos términos.
+                Tienda Vecina es un portal de comercio electrónico seguro que conecta a compradores y vendedores autorizados para la adquisición de productos tecnológicos, computación, moda y hogar en Chile. Al navegar o comprar en el sitio, el usuario acepta de manera íntegra estos términos.
               </p>
             </div>
 
@@ -154,7 +154,7 @@ defineExpose({ open, close })
             <div class="bg-gray-50 p-3.5 rounded-lg border border-gray-200">
               <h4 class="font-bold text-gray-900 mb-1">Uso Restringido de la Información</h4>
               <p>
-                Los datos de envío (dirección, teléfono y nombre) son utilizados exclusivamente para coordinar la entrega logística del pedido. Inacap E-Commerce no comercializa ni arrienda bases de datos a terceras partes.
+                Los datos de envío (dirección, teléfono y nombre) son utilizados exclusivamente para coordinar la entrega logística del pedido. Tienda Vecina no comercializa ni arrienda bases de datos a terceras partes.
               </p>
             </div>
 

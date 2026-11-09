@@ -8,7 +8,7 @@ import { ShieldCheck, Truck, CreditCard, Sparkles } from 'lucide-vue-next'
       <div class="space-y-2 text-center md:text-left">
         <div class="inline-flex items-center gap-1.5 bg-brand-surface/90 text-brand-primary-text font-extrabold text-xs px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-brand-primary-border">
           <Sparkles class="w-3.5 h-3.5 text-brand-accent" />
-          <span>Especial Inacap Tech</span>
+          <span>Especial Tienda Vecina Tech</span>
         </div>
         <h1 class="text-2xl md:text-4xl font-black tracking-tight text-slate-950">
           HASTA 40% OFF Y 12 CUOTAS SIN INTERÉS

@@ -1,1 +1,1 @@
-"""Inacap E-Commerce Django Configuration Package."""
+"""Tienda Vecina Django Configuration Package."""

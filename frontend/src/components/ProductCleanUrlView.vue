@@ -266,7 +266,7 @@ function handleBuyNow() {
               </template>
             </div>
             <div v-else class="text-slate-500 text-[11px]">
-              Vendedor Autorizado Mercado Inacap ({{ product.seller_alias }})
+              Vendedor Autorizado Tienda Vecina ({{ product.seller_alias }})
             </div>
           </div>
 
