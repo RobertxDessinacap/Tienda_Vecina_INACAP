@@ -1,4 +1,4 @@
-# Inacap E-Commerce
+# Tiena_Vecina_INACAP
 
 Plataforma de comercio electrónico moderna, segura y de alto rendimiento diseñada con la estética limpia y amigable de MercadoLibre / Mercado Pago. Desarrollada con **Django** (PostgreSQL ORM) en el Backend y **Vue 3** (Vite + Tailwind CSS + Pinia) en el Frontend.
 
