@@ -1,0 +1,1305 @@
+[
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fauthentication.py%23JWTAuthentication.authenticate::backend%2Fapps%2Faccounts%2Fauthentication.py%23jwt.decode::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/authentication.py#JWTAuthentication.authenticate",
+      "boundary": "backend/apps/accounts/authentication.py#jwt.decode",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Proveedor de autenticacion Bearer JWT",
+    "boundary": "Ciclo de vida y revocacion de tokens JWT",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Control de acceso y gestion de sesiones",
+    "starting_paths": [
+      "backend/apps/accounts/authentication.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/authentication.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los tokens JWT revocados o tras logout deben invalidarse en servidor inmediatamente.",
+        "result": "El backend no implementa lista de revocacion y confia unicamente en la expiracion matematica del token (168 horas).",
+        "reviewed_paths": [
+          "backend/apps/accounts/authentication.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Debe verificarse si existe una capa intermedia de revocacion en infraestructura.",
+        "result": "Se requiere validar si existe Redis o API Gateway perimetral con lista negra de tokens en produccion.",
+        "reviewed_paths": [
+          "backend/apps/accounts/authentication.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "auth.jwt.missing-server-side-revocation-denylist"
+    ],
+    "unresolved": [
+      "Requiere validacion de capa perimetral API Gateway o Redis denylist en produccion"
+    ]
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fpermissions.py%23IsSellerOrAdmin::backend%2Fapps%2Faccounts%2Fmodels.py%23UserRol::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/permissions.py#IsSellerOrAdmin",
+      "boundary": "backend/apps/accounts/models.py#UserRol",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Permiso de autorizacion IsSellerOrAdmin y tabla UserRol",
+    "boundary": "Consistencia entre modelo de usuario y roles asignados",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Control de acceso basado en roles y escalamiento de privilegios",
+    "starting_paths": [
+      "backend/apps/accounts/permissions.py",
+      "backend/apps/accounts/models.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/permissions.py",
+      "backend/apps/accounts/models.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La modificacion del rol de un usuario debe sincronizarse atomicamente con los registros de UserRol.",
+        "result": "Se constato que al modificar user.role no se invalidan los registros activos en UserRol.",
+        "reviewed_paths": [
+          "backend/apps/accounts/permissions.py",
+          "backend/apps/accounts/models.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "auth.roles.rbac-userrol-desynchronization"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fauth%2Flogin%2F%23throttling::backend%2Fconfig%2Fsettings.py%23REST_FRAMEWORK::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/views.py#POST /api/v1/auth/login/#throttling",
+      "boundary": "backend/config/settings.py#REST_FRAMEWORK",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Vistas de login y registro de usuarios en DRF",
+    "boundary": "Configuracion de clases y tasas de throttling",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Fuerza bruta y denegacion de servicio por consumo de CPU",
+    "starting_paths": [
+      "backend/apps/accounts/views.py",
+      "backend/config/settings.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/views.py",
+      "backend/config/settings.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los endpoints de autenticacion deben limitar la tasa de solicitudes por IP y por cuenta.",
+        "result": "Se constato la ausencia de DEFAULT_THROTTLE_CLASSES y throttle_classes en las vistas.",
+        "reviewed_paths": [
+          "backend/apps/accounts/views.py",
+          "backend/config/settings.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "auth.throttling.missing-rate-limiting-login-register"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fauth%2Flogin%2F::backend%2Fapps%2Faccounts%2Fserializers.py%23LoginSerializer::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/views.py#POST /api/v1/auth/login/",
+      "boundary": "backend/apps/accounts/serializers.py#LoginSerializer",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Endpoint publico de inicio de sesion",
+    "boundary": "Validacion de credenciales y bloqueo temporal por intentos fallidos",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Control de acceso y mitigacion de fuerza bruta",
+    "starting_paths": [
+      "backend/apps/accounts/views.py",
+      "backend/apps/accounts/serializers.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "covered",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/serializers.py",
+      "backend/apps/accounts/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El sistema debe mitigar ataques de fuerza bruta bloqueando cuentas tras intentos fallidos consecutivos.",
+        "result": "LoginSerializer implementa bloqueo de cuenta por 15 minutos al alcanzar 5 intentos fallidos consecutivos.",
+        "reviewed_paths": [
+          "backend/apps/accounts/serializers.py",
+          "backend/apps/accounts/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fauth%2Fregister%2F::backend%2Fapps%2Faccounts%2Fserializers.py%23UserRegistrationSerializer::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/views.py#POST /api/v1/auth/register/",
+      "boundary": "backend/apps/accounts/serializers.py#UserRegistrationSerializer",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage"
+    },
+    "surface": "Endpoint publico de registro de usuarios",
+    "boundary": "Validacion de unicidad de RUT y manejo transaccional de Persona",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Abuso de funcionalidad y filtracion de informacion",
+    "starting_paths": [
+      "backend/apps/accounts/views.py",
+      "backend/apps/accounts/serializers.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/serializers.py",
+      "backend/apps/accounts/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los campos con unicidad estricta como el RUT deben validarse antes de persistir registros de credenciales para evitar excepciones 500.",
+        "result": "Falta de validacion de unicidad en RUT produce fallo de integridad en base de datos creando registros parciales.",
+        "reviewed_paths": [
+          "backend/apps/accounts/serializers.py",
+          "backend/apps/accounts/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El registro de usuario debe ser transaccionalmente atomico.",
+        "result": "Verificado que create_user se ejecuta antes de intentar guardar el RUT en el objeto Persona sin bloque atomico.",
+        "reviewed_paths": [
+          "backend/apps/accounts/serializers.py",
+          "backend/apps/accounts/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "auth.registration.unhandled-integrity-user-enumeration"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fauth%2Fregister-store%2F::backend%2Fapps%2Faccounts%2Fviews.py%23RegisterStoreAPIView::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/views.py#POST /api/v1/auth/register-store/",
+      "boundary": "backend/apps/accounts/views.py#RegisterStoreAPIView",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Endpoint de registro de Tienda Oficial",
+    "boundary": "Verificacion administrativa de insignias comerciales de marca",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Logica de negocio y suplantacion de identidad de marca",
+    "starting_paths": [
+      "backend/apps/accounts/views.py",
+      "backend/apps/accounts/serializers.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/serializers.py",
+      "backend/apps/accounts/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La insignia de Tienda Oficial debe requerir aprobacion administrativa antes de ser otorgada a un vendedor.",
+        "result": "Cualquier vendedor puede autoasignarse is_official_store = True con cualquier nombre de tienda sin moderacion.",
+        "reviewed_paths": [
+          "backend/apps/accounts/serializers.py",
+          "backend/apps/accounts/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El modelo UserProfile debe requerir validacion previa para insignias comerciales.",
+        "result": "Verificado en RegisterStoreAPIView que profile.is_official_store = True se persiste inmediatamente.",
+        "reviewed_paths": [
+          "backend/apps/accounts/serializers.py",
+          "backend/apps/accounts/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "catalog.store.unverified-official-store-badge-impersonation"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Faccounts%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fauth%2Fupgrade-seller%2F::backend%2Fapps%2Faccounts%2Fviews.py%23UpgradeToSellerAPIView::backend%2Fapps%2Faccounts::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "backend/apps/accounts/views.py#POST /api/v1/auth/upgrade-seller/",
+      "boundary": "backend/apps/accounts/views.py#UpgradeToSellerAPIView",
+      "subsystem": "backend/apps/accounts",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Endpoint de ascenso de cuenta a vendedor",
+    "boundary": "Preservacion de roles de administrador y transiciones de estado",
+    "subsystem": "Modulo de Cuentas y Autenticacion",
+    "attack_class": "Control de acceso y degradacion de privilegios",
+    "starting_paths": [
+      "backend/apps/accounts/views.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "backend/apps/accounts/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las cuentas con rol ADMIN no deben ser degradadas a SELLER al interactuar con flujos de comprador.",
+        "result": "UpgradeToSellerAPIView sobrescribe ciegamente user.role = ROLE_SELLER sin comprobar si era administrador.",
+        "reviewed_paths": [
+          "backend/apps/accounts/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-auth",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El endpoint debe verificar si el usuario ya posee permisos superiores.",
+        "result": "Verificado que un usuario con rol ADMIN pierde su rol tras invocar el endpoint.",
+        "reviewed_paths": [
+          "backend/apps/accounts/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "auth.roles.admin-privilege-demotion-via-upgrade"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fpayments%2Fservices.py%23calculate_safe_cart_totals::backend%2Fapps%2Fpayments%2Fviews.py%23CartCalculateAPIView::backend%2Fapps%2Fpayments::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "backend/apps/payments/services.py#calculate_safe_cart_totals",
+      "boundary": "backend/apps/payments/views.py#CartCalculateAPIView",
+      "subsystem": "backend/apps/payments",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Servicio de calculo seguro de totales de carrito y vista de API",
+    "boundary": "Conversion de tipos y manejo de excepciones en items de carrito",
+    "subsystem": "Modulo de Pagos y Ordenes",
+    "attack_class": "Manejo de recursos y excepciones no controladas",
+    "starting_paths": [
+      "backend/apps/payments/services.py",
+      "backend/apps/payments/views.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-payments",
+    "reviewed_paths": [
+      "backend/apps/payments/services.py",
+      "backend/apps/payments/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-payments",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los parametros numericos de entrada en el carrito deben validarse sin producir excepciones 500 no controladas.",
+        "result": "calculate_safe_cart_totals ejecuta int() sobre quantity sin capturar ValueError ante strings no numericos.",
+        "reviewed_paths": [
+          "backend/apps/payments/services.py",
+          "backend/apps/payments/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-payments",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las vistas CartCalculateAPIView y TransbankInitAPIView deben capturar ValueError y retornar HTTP 400.",
+        "result": "Comprobado en consola python que int(\"invalido\") lanza ValueError y el handler devuelve HTTP 500.",
+        "reviewed_paths": [
+          "backend/apps/payments/services.py",
+          "backend/apps/payments/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "payments.cart.unhandled-value-error-dos"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fpayments%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fpayments%2Ftransbank%2Fcommit%2F%23stock::backend%2Fapps%2Fpayments%2Fviews.py%23product.save::backend%2Fapps%2Fpayments::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "backend/apps/payments/views.py#POST /api/v1/payments/transbank/commit/#stock",
+      "boundary": "backend/apps/payments/views.py#product.save",
+      "subsystem": "backend/apps/payments",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Descuento de stock en confirmacion de compra Transbank",
+    "boundary": "Bloqueo concurrente y transaccionalidad de inventario",
+    "subsystem": "Modulo de Pagos y Ordenes",
+    "attack_class": "Condicion de carrera y sobreventa de productos",
+    "starting_paths": [
+      "backend/apps/payments/views.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-payments",
+    "reviewed_paths": [
+      "backend/apps/payments/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-payments",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El inventario debe descontarse bajo transacciones atomicas con expresiones F o bloqueo select_for_update.",
+        "result": "Se observo asignacion product.stock -= item.quantity fuera de transaccion atomica.",
+        "reviewed_paths": [
+          "backend/apps/payments/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "transbank.concurrency.race-condition-stock-depletion"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fpayments%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fpayments%2Ftransbank%2Fcommit%2F::backend%2Fapps%2Fpayments%2Fservices.py%23TransbankWebpayService.commit_transaction::backend%2Fapps%2Fpayments::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "backend/apps/payments/views.py#POST /api/v1/payments/transbank/commit/",
+      "boundary": "backend/apps/payments/services.py#TransbankWebpayService.commit_transaction",
+      "subsystem": "backend/apps/payments",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Endpoint de confirmacion de transaccion Transbank Webpay Plus",
+    "boundary": "Verificacion de estado de autorizacion en servicio Transbank",
+    "subsystem": "Modulo de Pagos y Ordenes",
+    "attack_class": "Logica de negocio y bypass de pago",
+    "starting_paths": [
+      "backend/apps/payments/views.py",
+      "backend/apps/payments/services.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Aplicacion desarrollada en Python/Django de alto nivel gestionada por runtime"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-payments",
+    "reviewed_paths": [
+      "backend/apps/payments/services.py",
+      "backend/apps/payments/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-payments",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La confirmacion del pago solo debe autorizarse si la pasarela Transbank retorna status AUTHORIZED y la orden no estaba previamente pagada.",
+        "result": "Se observo que cualquier error o excepcion en tx.commit retorna incondicionalmente status AUTHORIZED y voucher falso.",
+        "reviewed_paths": [
+          "backend/apps/payments/services.py",
+          "backend/apps/payments/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-payments",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La verificacion del token debe ser obligatoria y rechazar tokens simulados o excepciones de conexion.",
+        "result": "Verificado independientemente mediante inspeccion de codigo y prueba local con token arbitrario.",
+        "reviewed_paths": [
+          "backend/apps/payments/services.py",
+          "backend/apps/payments/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "transbank.commit.replay-inventory-depletion",
+      "transbank.commit.unconditional-authorization-bypass"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fproducts%2Fserializers.py%23ProductCreateUpdateSerializer._extract_and_process_images::backend%2Fapps%2Fproducts%2Fmodels.py%23Product.images::backend%2Fapps%2Fproducts::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "backend/apps/products/serializers.py#ProductCreateUpdateSerializer._extract_and_process_images",
+      "boundary": "backend/apps/products/models.py#Product.images",
+      "subsystem": "backend/apps/products",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Campo existing_images en actualizacion de productos",
+    "boundary": "Renderizado de imagenes en componentes frontend Vue 3",
+    "subsystem": "Modulo de Catalogo y Productos",
+    "attack_class": "Inyeccion de codigo e inyeccion DOM",
+    "starting_paths": [
+      "backend/apps/products/serializers.py",
+      "frontend/src/components/ProductCard.vue"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-products",
+    "reviewed_paths": [
+      "backend/apps/products/serializers.py",
+      "frontend/src/components/ProductCard.vue"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las URLs de imagenes almacenadas en el catalogo no deben permitir ejecucion arbitraria de JavaScript en el cliente.",
+        "result": "Se planteo la hipotesis de que valores en existing_images podrian ejecutar XSS en el navegador.",
+        "reviewed_paths": [
+          "backend/apps/products/serializers.py",
+          "frontend/src/components/ProductCard.vue"
+        ]
+      },
+      {
+        "agent_id": "verifier-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El frontend no debe ejecutar scripts bajo atributos src de imagenes y debe aplicar CSP.",
+        "result": "Comprobado que las imagenes se renderizan estrictamente con <img :src> donde javascript: no es ejecutable por navegadores modernos y CSP bloquea scripts no autorizados.",
+        "reviewed_paths": [
+          "backend/apps/products/serializers.py",
+          "frontend/src/components/ProductCard.vue"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "catalog.images.unvalidated-url-xss-via-existing-images"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fproducts%2Futils.py%23process_and_secure_product_image::backend%2Fapps%2Fproducts%2Futils.py%23Image.open::backend%2Fapps%2Fproducts::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "backend/apps/products/utils.py#process_and_secure_product_image",
+      "boundary": "backend/apps/products/utils.py#Image.open",
+      "subsystem": "backend/apps/products",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Pipeline de subida y procesamiento de imagenes",
+    "boundary": "Validacion de magic bytes, re-encode RGB y limite de pixeles",
+    "subsystem": "Modulo de Catalogo y Productos",
+    "attack_class": "Manejo seguro de archivos y recursos",
+    "starting_paths": [
+      "backend/apps/products/utils.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "covered",
+    "agent_id": "hunter-products",
+    "reviewed_paths": [
+      "backend/apps/products/utils.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las imagenes subidas deben ser re-codificadas para eliminar scripts, metadatos y polyglots maliciosos.",
+        "result": "Pillow verifica magic bytes y genera un archivo JPEG fresco de 900x600 descartando metadatos y limitando pixeles a 10M.",
+        "reviewed_paths": [
+          "backend/apps/products/utils.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fproducts%2Fviews.py%23GET%20%2Fapi%2Fv1%2Fproducts%2F::backend%2Fapps%2Fproducts%2Fviews.py%23ProductListCreateView.get::backend%2Fapps%2Fproducts::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "backend/apps/products/views.py#GET /api/v1/products/",
+      "boundary": "backend/apps/products/views.py#ProductListCreateView.get",
+      "subsystem": "backend/apps/products",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Endpoint publico de catalogo de productos",
+    "boundary": "Serializacion y paginacion de lista de productos",
+    "subsystem": "Modulo de Catalogo y Productos",
+    "attack_class": "Agotamiento de recursos y disponibilidad",
+    "starting_paths": [
+      "backend/apps/products/views.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Codigo Python gestionado por GC"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-products",
+    "reviewed_paths": [
+      "backend/apps/products/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las consultas al catalogo deben implementar paginacion server-side estricta para evitar consumo desmedido de memoria.",
+        "result": "La vista hereda de APIView y serializa el queryset completo sin limite de registros.",
+        "reviewed_paths": [
+          "backend/apps/products/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La paginacion declarada en settings debe ser aplicada por la vista de productos.",
+        "result": "Comprobado que APIView ignora DEFAULT_PAGINATION_CLASS a menos que se use pagination_class explicitamente.",
+        "reviewed_paths": [
+          "backend/apps/products/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "catalog.products.unpaginated-resource-exhaustion"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fproducts%2Fviews.py%23POST%20%2Fapi%2Fv1%2Fproducts%2F%3Alookup%2Freviews%2F::backend%2Fapps%2Fproducts%2Fmodels.py%23ProductReview::backend%2Fapps%2Fproducts::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "backend/apps/products/views.py#POST /api/v1/products/:lookup/reviews/",
+      "boundary": "backend/apps/products/models.py#ProductReview",
+      "subsystem": "backend/apps/products",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Endpoint de publicacion de evaluaciones de productos",
+    "boundary": "Verificacion de compra previa y unicidad de reviews",
+    "subsystem": "Modulo de Catalogo y Productos",
+    "attack_class": "Logica de negocio y abuso de funcionalidad",
+    "starting_paths": [
+      "backend/apps/products/views.py",
+      "backend/apps/products/models.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python no vulnerable a desbordamientos binarios"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-products",
+    "reviewed_paths": [
+      "backend/apps/products/models.py",
+      "backend/apps/products/views.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Solo compradores verificados con ordenes completadas deben poder evaluar un producto una unica vez.",
+        "result": "Cualquier usuario autenticado puede emitir ilimitadas evaluaciones sobre cualquier producto, inclusive los propios.",
+        "reviewed_paths": [
+          "backend/apps/products/models.py",
+          "backend/apps/products/views.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-products",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El modelo ProductReview debe imponer restriccion unica por usuario y producto.",
+        "result": "Verificado que ProductReview no tiene unique_together ni comprobacion de orden de compra previa.",
+        "reviewed_paths": [
+          "backend/apps/products/models.py",
+          "backend/apps/products/views.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "catalog.reviews.unrestricted-fraudulent-reviews"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fsecurity%2Fmiddleware.py%23ISO27001SecurityHeadersMiddleware%23connect-src::backend%2Fapps%2Fsecurity%2Fmiddleware.py%23Content-Security-Policy::backend%2Fapps%2Fsecurity::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "backend/apps/security/middleware.py#ISO27001SecurityHeadersMiddleware#connect-src",
+      "boundary": "backend/apps/security/middleware.py#Content-Security-Policy",
+      "subsystem": "backend/apps/security",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Directiva Content-Security-Policy en middleware de cabeceras",
+    "boundary": "Restriccion de origenes de red salientes connect-src",
+    "subsystem": "Modulo de Seguridad y Auditoria",
+    "attack_class": "Exfiltracion de datos y evasion de contencion CSP",
+    "starting_paths": [
+      "backend/apps/security/middleware.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-security",
+    "reviewed_paths": [
+      "backend/apps/security/middleware.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-security",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La cabecera CSP debe restringir conexiones salientes exclusivamente a endpoints conocidos y seguros.",
+        "result": "Se observo la inclusion de https: como comodin permitiendo peticiones a cualquier dominio HTTPS.",
+        "reviewed_paths": [
+          "backend/apps/security/middleware.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "security.middleware.csp-wildcard-data-exfiltration"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fsecurity%2Fmiddleware.py%23ISO27001SecurityHeadersMiddleware::backend%2Fapps%2Fsecurity%2Fmiddleware.py%23response::backend%2Fapps%2Fsecurity::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "backend/apps/security/middleware.py#ISO27001SecurityHeadersMiddleware",
+      "boundary": "backend/apps/security/middleware.py#response",
+      "subsystem": "backend/apps/security",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Middleware global de cabeceras de seguridad HTTP",
+    "boundary": "Inyeccion de CSP, X-Frame-Options, X-Content-Type-Options",
+    "subsystem": "Modulo de Seguridad e Infraestructura",
+    "attack_class": "Mitigacion de inyeccion y clickjacking",
+    "starting_paths": [
+      "backend/apps/security/middleware.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "covered",
+    "agent_id": "hunter-security",
+    "reviewed_paths": [
+      "backend/apps/security/middleware.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-security",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las cabeceras de respuesta HTTP deben proteger contra MIME-sniffing, framing no autorizado y XSS.",
+        "result": "El middleware inyecta X-Content-Type-Options: nosniff, X-Frame-Options: DENY y Content-Security-Policy estricto en cada respuesta HTTP.",
+        "reviewed_paths": [
+          "backend/apps/security/middleware.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fapps%2Fsecurity%2Fmiddleware.py%23SecurityAuditLoggingMiddleware::backend%2Fapps%2Fsecurity%2Fmiddleware.py%23logger.info::backend%2Fapps%2Fsecurity::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "backend/apps/security/middleware.py#SecurityAuditLoggingMiddleware",
+      "boundary": "backend/apps/security/middleware.py#logger.info",
+      "subsystem": "backend/apps/security",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Middleware de registro de auditoria de seguridad ISO 27001",
+    "boundary": "Sanitizacion de cabeceras HTTP X-Forwarded-For en logs",
+    "subsystem": "Modulo de Seguridad e Infraestructura",
+    "attack_class": "Inyeccion de registros y falsificacion de auditoria (CRLF)",
+    "starting_paths": [
+      "backend/apps/security/middleware.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-security",
+    "reviewed_paths": [
+      "backend/apps/security/middleware.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-security",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los valores extraidos de cabeceras de cliente para logs de auditoria deben ser sanitizados contra caracteres de salto de linea (CRLF).",
+        "result": "HTTP_X_FORWARDED_FOR se interpola directamente en el string de logging sin purgar saltos de linea.",
+        "reviewed_paths": [
+          "backend/apps/security/middleware.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-security",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El logger no debe permitir inyeccion de lineas de log falsificadas.",
+        "result": "Verificado en consola que caracteres CRLF inyectados dividen el mensaje generando lineas falsas de auditoria.",
+        "reviewed_paths": [
+          "backend/apps/security/middleware.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "logging.middleware.crlf-log-injection-audit-spoofing"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fconfig%2Fsettings.py%23JWT_SECRET_KEY::.env.example%23JWT_SECRET_KEY::backend%2Fconfig::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "backend/config/settings.py#JWT_SECRET_KEY",
+      "boundary": ".env.example#JWT_SECRET_KEY",
+      "subsystem": "backend/config",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Configuracion de clave de firma para tokens JWT",
+    "boundary": "Fallback de secreto de firma a SECRET_KEY o valor por defecto",
+    "subsystem": "Configuracion Global Django",
+    "attack_class": "Criptografia y falsificacion de firmas de autenticacion",
+    "starting_paths": [
+      "backend/config/settings.py",
+      ".env.example"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-infra",
+    "reviewed_paths": [
+      "backend/config/settings.py",
+      ".env.example"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-infra",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las claves criptograficas de autenticacion deben ser independientes y tener alta entropia en produccion.",
+        "result": "Se observo que JWT_SECRET_KEY hace fallback a SECRET_KEY y estan publicadas en .env.example.",
+        "reviewed_paths": [
+          "backend/config/settings.py",
+          ".env.example"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "infra.env.hardcoded-jwt-secret-fallback"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "backend%2Fconfig%2Fsettings.py%23check_postgres_connection::backend%2Fconfig%2Fsettings.py%23DATABASES::backend%2Fconfig::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "backend/config/settings.py#check_postgres_connection",
+      "boundary": "backend/config/settings.py#DATABASES",
+      "subsystem": "backend/config",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Configuracion de base de datos relacional y fallback",
+    "boundary": "Seleccion determinista del motor de base de datos en arranque",
+    "subsystem": "Configuracion Central de Backend",
+    "attack_class": "Logica de configuracion y persistencia",
+    "starting_paths": [
+      "backend/config/settings.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Python"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-config",
+    "reviewed_paths": [
+      "backend/config/settings.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-config",
+        "method": "source",
+        "artifact": null,
+        "invariant": "En entornos productivos la base de datos debe ser estrictamente PostgreSQL y abortar si no esta disponible.",
+        "result": "settings.py conmuta automaticamente a SQLite si el socket PostgreSQL no responde al iniciar.",
+        "reviewed_paths": [
+          "backend/config/settings.py"
+        ]
+      },
+      {
+        "agent_id": "verifier-config",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El fallback a SQLite debe estar deshabilitado en configuraciones de despliegue.",
+        "result": "Se requiere validar los valores en el archivo .env de produccion para descartar que DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE este activo.",
+        "reviewed_paths": [
+          "backend/config/settings.py"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "settings.database.silent-sqlite-fallback-data-leakage"
+    ],
+    "unresolved": [
+      "Requiere confirmacion de variables de entorno en despliegue productivo"
+    ]
+  },
+  {
+    "coverage_id": "docker-compose.yml%23services.backend.command::backend%2FDockerfile%23CMD::docker-compose.yml::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "docker-compose.yml#services.backend.command",
+      "boundary": "backend/Dockerfile#CMD",
+      "subsystem": "docker-compose.yml",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Comando de inicio de servidor en contenedor backend",
+    "boundary": "Uso de servidor de produccion WSGI/ASGI versus runserver",
+    "subsystem": "Infraestructura de Contenedores",
+    "attack_class": "Estabilidad operacional y denegacion de servicio",
+    "starting_paths": [
+      "docker-compose.yml",
+      "backend/Dockerfile"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-infra",
+    "reviewed_paths": [
+      "docker-compose.yml",
+      "backend/Dockerfile"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-infra",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los contenedores de aplicacion deben ejecutar servidores de grado productivo como Gunicorn.",
+        "result": "Se constato el uso de python manage.py runserver vulnerable a saturacion monohilo.",
+        "reviewed_paths": [
+          "docker-compose.yml",
+          "backend/Dockerfile"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "infra.docker.insecure-django-runserver-production"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "docker-compose.yml%23services.db.ports::docker-compose.yml%23environment::docker-compose.yml::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "docker-compose.yml#services.db.ports",
+      "boundary": "docker-compose.yml#environment",
+      "subsystem": "docker-compose.yml",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Servicio de base de datos PostgreSQL en docker-compose",
+    "boundary": "Mapeo de puertos hacia la interfaz de red publica 0.0.0.0",
+    "subsystem": "Infraestructura de Contenedores",
+    "attack_class": "Exposicion de servicios internos y autenticacion debil",
+    "starting_paths": [
+      "docker-compose.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-infra",
+    "reviewed_paths": [
+      "docker-compose.yml"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-infra",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Los servicios de persistencia de base de datos no deben ser expuestos hacia redes publicas no confiables.",
+        "result": "Se constato el mapeo del puerto 5432:5432 sin aislamiento de interfaz loopback con contrasena postgres.",
+        "reviewed_paths": [
+          "docker-compose.yml"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "infra.docker.postgres-exposed-public-port"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "frontend%2Fsrc%2Fcomponents%2FAuthModal.vue%23fillDemoCredentials::frontend%2Fsrc%2Fcomponents%2FAuthModal.vue%23template::frontend%2Fsrc%2Fcomponents::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "frontend/src/components/AuthModal.vue#fillDemoCredentials",
+      "boundary": "frontend/src/components/AuthModal.vue#template",
+      "subsystem": "frontend/src/components",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Modal de autenticacion y seleccion de roles AuthModal.vue",
+    "boundary": "Incrustacion de credenciales en interfaz y bundle publico",
+    "subsystem": "Componentes de Interfaz de Usuario",
+    "attack_class": "Fuga de credenciales y acceso administrativo",
+    "starting_paths": [
+      "frontend/src/components/AuthModal.vue"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-frontend",
+    "reviewed_paths": [
+      "frontend/src/components/AuthModal.vue"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-frontend",
+        "method": "source",
+        "artifact": null,
+        "invariant": "El codigo fuente y artefactos empaquetados para produccion no deben contener credenciales en texto plano.",
+        "result": "Se constato que credenciales demo de administrador se exponen y compilan en los assets de produccion.",
+        "reviewed_paths": [
+          "frontend/src/components/AuthModal.vue"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "frontend.auth.hardcoded-admin-credentials-modal"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "frontend%2Fsrc%2Fcomponents%2FCartDrawer.vue%23addItem::frontend%2Fsrc%2Fstores%2Fcart.js%23addItem::frontend%2Fsrc%2Fstores::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "frontend/src/components/CartDrawer.vue#addItem",
+      "boundary": "frontend/src/stores/cart.js#addItem",
+      "subsystem": "frontend/src/stores",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Control de decremento de cantidades en CartDrawer.vue",
+    "boundary": "Validacion de cota inferior en cantidades de articulos de carrito",
+    "subsystem": "Estado de Carrito de Compras (Pinia)",
+    "attack_class": "Logica de negocio y corrupcion de carrito",
+    "starting_paths": [
+      "frontend/src/components/CartDrawer.vue",
+      "frontend/src/stores/cart.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-frontend",
+    "reviewed_paths": [
+      "frontend/src/components/CartDrawer.vue",
+      "frontend/src/stores/cart.js"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-frontend",
+        "method": "source",
+        "artifact": null,
+        "invariant": "Las cantidades de articulos en el carrito de compras deben ser enteros estrictamente positivos mayores a cero.",
+        "result": "Se observo que addItem con valor -1 permite descender la cantidad a cero y valores negativos.",
+        "reviewed_paths": [
+          "frontend/src/components/CartDrawer.vue",
+          "frontend/src/stores/cart.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "frontend.cart.negative-quantity-logic-flaw"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "frontend%2Fsrc%2Futils%2Fsecurity.js%23isSafeInput::frontend%2Fsrc%2Futils%2Fsecurity.js%23FORBIDDEN_XSS_REGEX.test::frontend%2Fsrc%2Futils::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "frontend/src/utils/security.js#isSafeInput",
+      "boundary": "frontend/src/utils/security.js#FORBIDDEN_XSS_REGEX.test",
+      "subsystem": "frontend/src/utils",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Funcion utilitaria de validacion booleana isSafeInput",
+    "boundary": "Evaluacion de expresiones regulares globales con lastIndex",
+    "subsystem": "Modulo de Utilitarios Frontend",
+    "attack_class": "Inyeccion de scripts y bypass de validacion",
+    "starting_paths": [
+      "frontend/src/utils/security.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Memory safety",
+        "reason": "Managed runtime execution"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "hunter-frontend",
+    "reviewed_paths": [
+      "frontend/src/utils/security.js"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-frontend",
+        "method": "source",
+        "artifact": null,
+        "invariant": "La validacion booleana de entradas debe ser idempotente y no retener estado mutable.",
+        "result": "Se confirmo que el flag global /g muta lastIndex produciendo bypasses en invocaciones consecutivas.",
+        "reviewed_paths": [
+          "frontend/src/utils/security.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "frontend.security.regex-stateful-lastindex-bypass"
+    ],
+    "unresolved": []
+  }
+]

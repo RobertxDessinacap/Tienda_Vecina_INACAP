@@ -1,0 +1,34 @@
+{
+  "run_id": "audit-20261111-develop-final-exhaustive",
+  "repo": "inacap-ecommerce",
+  "target": "/home/misnull/Proyectos/inacap-ecommerce",
+  "source_ref": "develop (commit a753dea7bef3bdfa8e458fa53f62c15b113c20c7)",
+  "profile": "deep",
+  "scope_paths": [
+    "backend/",
+    "frontend/",
+    "docker-compose.yml",
+    "Dockerfile",
+    ".env.example",
+    "scripts/"
+  ],
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "selected_companion_files": [
+    "ATTACK-CLASSES.md",
+    "WEB-PROTOCOL-AND-AUTH.md",
+    "CLIENT-SIDE.md",
+    "CLOUD-AND-DEPLOYMENT.md",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md"
+  ],
+  "prior_run_paths": [
+    "AUDIT/coverage-ledger.json",
+    "AUDIT/findings.json"
+  ],
+  "shared_file_owners": {
+    "parent": "audit-coordinator",
+    "validators": "audit-verifier"
+  },
+  "waves_completed": 3,
+  "run_status": "complete"
+}
