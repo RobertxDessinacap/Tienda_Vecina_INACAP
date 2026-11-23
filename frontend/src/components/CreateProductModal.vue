@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch, onUnmounted } from 'vue'
 import {
   X,
   PlusCircle,
@@ -17,21 +17,66 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import { useProductStore } from '../stores/products'
-import { blockDangerousCharsOnKeypress, sanitizeInput, sanitizeEventInput } from '../utils/security'
+import { sanitizeInput, sanitizeEventInput, resizeImageBeforeUpload } from '../utils/security'
 
 const authStore = useAuthStore()
 const productStore = useProductStore()
 
+const DEFAULT_PRODUCT_IMAGE_URL =
+  'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=900&auto=format&fit=crop&q=80'
+
+function createDefaultPhotoList() {
+  return [
+    {
+      id: 'default-1',
+      url: DEFAULT_PRODUCT_IMAGE_URL,
+      file: null,
+      isExisting: true,
+    },
+  ]
+}
+
 // Lista de fotografías (hasta 5 fotos por producto)
-const photoList = ref([
-  {
-    id: 'default-1',
-    url: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=900&auto=format&fit=crop&q=80',
-    file: null,
-    isExisting: true,
-  },
-])
+const photoList = ref(createDefaultPhotoList())
 const confirmDeleteId = ref(null)
+
+function revokePhotoUrl(photo) {
+  if (photo && !photo.isExisting && typeof photo.url === 'string' && photo.url.startsWith('blob:')) {
+    URL.revokeObjectURL(photo.url)
+  }
+}
+
+function revokeAllBlobUrls(list) {
+  for (const photo of list) {
+    revokePhotoUrl(photo)
+  }
+}
+
+let closeTimer = null
+watch(
+  () => productStore.createModalOpen,
+  (open) => {
+    if (!open) {
+      if (closeTimer) {
+        clearTimeout(closeTimer)
+        closeTimer = null
+      }
+      revokeAllBlobUrls(photoList.value)
+      photoList.value = createDefaultPhotoList()
+      confirmDeleteId.value = null
+      errorMessage.value = ''
+      successMessage.value = ''
+    }
+  }
+)
+
+onUnmounted(() => {
+  if (closeTimer) {
+    clearTimeout(closeTimer)
+    closeTimer = null
+  }
+  revokeAllBlobUrls(photoList.value)
+})
 
 const formData = reactive({
   title: '',
@@ -77,6 +122,8 @@ function cancelDelete() {
 }
 
 function confirmDelete(id) {
+  const target = photoList.value.find((p) => p.id === id)
+  revokePhotoUrl(target)
   photoList.value = photoList.value.filter((p) => p.id !== id)
   confirmDeleteId.value = null
 }
@@ -152,18 +199,21 @@ async function handleSubmit() {
   data.append('installments', formData.installments)
 
   const existingUrls = []
-  photoList.value.forEach((p) => {
+  const uploadedFiles = []
+  for (const p of photoList.value) {
     if (p.file) {
-      data.append('image_files', p.file)
+      const scaledFile = await resizeImageBeforeUpload(p.file, 900, 600, 0.85)
+      uploadedFiles.push(scaledFile)
+      data.append('image_files', scaledFile)
     } else if (p.url) {
       existingUrls.push(p.url)
     }
-  })
+  }
   if (existingUrls.length > 0) {
     data.append('existing_images', JSON.stringify(existingUrls))
     data.append('image_url', existingUrls[0])
-  } else if (photoList.value.length > 0 && photoList.value[0].file) {
-    data.append('image_file', photoList.value[0].file)
+  } else if (uploadedFiles.length > 0) {
+    data.append('image_file', uploadedFiles[0])
   }
 
   const result = await productStore.createProduct(data)
@@ -171,7 +221,10 @@ async function handleSubmit() {
 
   if (result.success) {
     successMessage.value = '¡Producto publicado con éxito en el catálogo!'
-    setTimeout(() => {
+    closeTimer = setTimeout(() => {
+      closeTimer = null
+      revokeAllBlobUrls(photoList.value)
+      photoList.value = createDefaultPhotoList()
       productStore.closeCreateModal()
       successMessage.value = ''
     }, 1500)
@@ -243,7 +296,6 @@ async function handleSubmit() {
             <input
               v-model="formData.title"
               type="text"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="e => sanitizeEventInput(e, v => formData.title = v)"
               placeholder="Ej: Teclado Mecánico Inalámbrico RGB Switch Brown"
               required
@@ -423,7 +475,6 @@ async function handleSubmit() {
             <textarea
               v-model="formData.caracteristicas_ads"
               rows="3"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="e => sanitizeEventInput(e, v => formData.caracteristicas_ads = v)"
               placeholder="Ingresa las especificaciones técnicas completas y detalles de uso (mínimo 250 caracteres)..."
               required
@@ -445,7 +496,6 @@ async function handleSubmit() {
             <textarea
               v-model="formData.description"
               rows="2"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="e => sanitizeEventInput(e, v => formData.description = v)"
               placeholder="Descripción general, estado y garantía..."
               required
@@ -497,7 +547,7 @@ async function handleSubmit() {
           <div class="bg-brand-surface rounded-xl border border-brand-border shadow-2xs overflow-hidden pointer-events-none">
             <div class="relative w-full aspect-[9/6] bg-brand-surface border-b border-brand-border/60 flex items-center justify-center overflow-hidden">
               <img
-                :src="previewImageSrc || formData.image_url"
+                :src="photoList[0]?.url || formData.image_url"
                 alt="Preview"
                 class="max-w-full max-h-full object-contain p-2"
                 @error="$event.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=900'"

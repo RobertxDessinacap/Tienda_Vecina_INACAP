@@ -154,6 +154,7 @@ class ProductReview(models.Model):
         verbose_name = 'Evaluación de Producto'
         verbose_name_plural = 'Evaluaciones de Productos'
         ordering = ['-created_at']
+        unique_together = ('product', 'user_profile')
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

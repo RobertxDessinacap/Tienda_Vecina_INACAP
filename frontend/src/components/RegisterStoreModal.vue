@@ -1,8 +1,8 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useProductStore } from '../stores/products'
 import { useAuthStore } from '../stores/auth'
-import { blockDangerousCharsOnKeypress, sanitizeEventInput } from '../utils/security'
+import { sanitizeEventInput, sanitizeInput, isValidHttpsUrl } from '../utils/security'
 import {
   X,
   Store,
@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  Clock,
 } from 'lucide-vue-next'
 
 const productStore = useProductStore()
@@ -20,6 +21,10 @@ const storeUrl = ref('')
 const localError = ref(null)
 const successMsg = ref(null)
 const isSubmitting = ref(false)
+
+const isStorePending = computed(
+  () => authStore.user?.user_profile?.official_store_status === 'PENDING'
+)
 
 watch(
   () => productStore.registerStoreModalOpen,
@@ -50,27 +55,37 @@ async function handleSubmit() {
   localError.value = null
   successMsg.value = null
 
-  if (!storeName.value.trim() || storeName.value.trim().length < 3) {
+  const cleanName = sanitizeInput(storeName.value)
+  const cleanUrl = storeUrl.value.trim()
+
+  if (!cleanName || cleanName.length < 3) {
     localError.value = 'El nombre de la tienda oficial debe tener al menos 3 caracteres.'
+    return
+  }
+
+  if (cleanUrl && !isValidHttpsUrl(cleanUrl)) {
+    localError.value = 'La URL del sitio web debe ser un enlace válido con protocolo https:// (ej: https://techchile.cl).'
     return
   }
 
   isSubmitting.value = true
   const res = await productStore.registerStore({
-    store_name: storeName.value.trim(),
-    store_url: storeUrl.value.trim(),
+    store_name: cleanName,
+    store_url: cleanUrl,
   })
   isSubmitting.value = false
 
   if (res.success) {
-    // Sincronizar en authStore
-    if (authStore.user?.user_profile) {
-      authStore.user.user_profile.is_official_store = true
-      authStore.user.user_profile.official_store_name = storeName.value.trim()
-      authStore.user.user_profile.official_store_url = storeUrl.value.trim()
-      localStorage.setItem('inacap_auth_user', JSON.stringify(authStore.user))
+    if (authStore.user && res.data) {
+      authStore.user.user_profile = res.data
+    } else {
+      await authStore.checkAuth()
     }
-    successMsg.value = '¡Tienda oficial registrada exitosamente!'
+    const status = res.data?.official_store_status
+    successMsg.value =
+      status === 'PENDING'
+        ? 'Solicitud enviada. Tu tienda oficial está en revisión por administración.'
+        : '¡Tienda oficial registrada exitosamente!'
     setTimeout(() => {
       productStore.closeRegisterStoreModal()
     }, 1200)
@@ -107,6 +122,15 @@ async function handleSubmit() {
 
       <!-- Form Body -->
       <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
+        <!-- Pending Verification Status Notice -->
+        <div
+          v-if="isStorePending"
+          class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2"
+        >
+          <Clock class="w-4 h-4 text-amber-600 shrink-0" />
+          <span>Solicitud en revisión por administración</span>
+        </div>
+
         <!-- Success Banner -->
         <div
           v-if="successMsg"
@@ -146,7 +170,6 @@ async function handleSubmit() {
             <input
               v-model="storeName"
               type="text"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="onNameInput"
               placeholder="Ej: TechChile Store, Sony Oficial Chile"
               class="w-full bg-slate-50 border border-brand-border focus:border-brand-accent focus:bg-white rounded-lg pl-9 pr-3 py-2 text-xs text-slate-800 focus:outline-none"
@@ -157,14 +180,13 @@ async function handleSubmit() {
         <!-- URL de la Tienda -->
         <div class="space-y-1">
           <label class="block text-xs font-bold text-slate-700">
-            URL del Sitio Web Oficial (Opcional)
+            URL del Sitio Web Oficial (Opcional, solo https://)
           </label>
           <div class="relative">
             <Globe class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               v-model="storeUrl"
               type="url"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="onUrlInput"
               placeholder="Ej: https://techchile.cl"
               class="w-full bg-slate-50 border border-brand-border focus:border-brand-accent focus:bg-white rounded-lg pl-9 pr-3 py-2 text-xs text-slate-800 focus:outline-none"

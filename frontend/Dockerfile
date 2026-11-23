@@ -1,12 +1,19 @@
-FROM node:20-alpine
+# Stage 1: Build optimized Vue 3 static bundle
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
+RUN npm run build
 
-EXPOSE 5173
+# Stage 2: Serve static assets with unprivileged Nginx
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-CMD ["npm", "run", "dev", "--", "--host"]
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 8080
+
+CMD ["nginx", "-g", "daemon off;"]

@@ -6,8 +6,9 @@ All sensitive configurations, database credentials and secrets are loaded strict
 
 from pathlib import Path
 import os
-import socket
+import sys
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Base Directory: root of backend
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -84,54 +85,36 @@ WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
 # ==============================================================================
-# Database Configuration (PostgreSQL ORM via psycopg3)
+# Database Configuration (PostgreSQL ORM via psycopg3 - Fail-Fast)
 # ==============================================================================
-def check_postgres_connection(host, port):
-    """Probe if PostgreSQL port is actively listening on host."""
-    try:
-        with socket.create_connection((host, int(port)), timeout=1.0):
-            return True
-    except (OSError, ValueError):
-        return False
-
+_IS_TEST_RUN = 'test' in sys.argv
 db_engine = os.getenv('DB_ENGINE', 'django.db.backends.postgresql')
-db_name = os.getenv('DB_NAME', 'inacap_ecommerce')
-db_user = os.getenv('DB_USER', 'postgres')
-db_password = os.getenv('DB_PASSWORD', 'postgres')
-db_host = os.getenv('DB_HOST', '127.0.0.1')
-db_port = os.getenv('DB_PORT', '5432')
-db_fallback = os.getenv('DB_FALLBACK_SQLITE_IF_PG_UNAVAILABLE', 'True').lower() in ('true', '1', 'yes')
 
-if check_postgres_connection(db_host, db_port):
-    DATABASES = {
-        'default': {
-            'ENGINE': db_engine,
-            'NAME': db_name,
-            'USER': db_user,
-            'PASSWORD': db_password,
-            'HOST': db_host,
-            'PORT': db_port,
-        }
-    }
-    print(f"[DATABASE] Connected to PostgreSQL on {db_host}:{db_port}/{db_name}")
-elif db_fallback:
+if _IS_TEST_RUN and os.getenv('TEST_USE_SQLITE', 'False').lower() in ('true', '1'):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': ':memory:',
         }
     }
-    print(f"[DATABASE NOTICE] PostgreSQL service on {db_host}:{db_port} not currently active.")
-    print("[DATABASE NOTICE] Using local SQLite development fallback. When PostgreSQL is started, it will connect automatically.")
+elif db_engine == 'django.db.backends.sqlite3':
+    sqlite_name = os.getenv('DB_SQLITE_NAME', 'db.sqlite3')
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / sqlite_name,
+        }
+    }
 else:
     DATABASES = {
         'default': {
             'ENGINE': db_engine,
-            'NAME': db_name,
-            'USER': db_user,
-            'PASSWORD': db_password,
-            'HOST': db_host,
-            'PORT': db_port,
+            'NAME': os.getenv('DB_NAME', 'inacap_ecommerce'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
+            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+            'CONN_MAX_AGE': 60,
         }
     }
 
@@ -182,6 +165,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.getenv('THROTTLE_ANON_RATE', '120/minute'),
+        'user': os.getenv('THROTTLE_USER_RATE', '600/minute'),
+        'login': os.getenv('THROTTLE_LOGIN_RATE', '5/minute'),
+        'register': os.getenv('THROTTLE_REGISTER_RATE', '3/minute'),
+    },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 12,
     'EXCEPTION_HANDLER': 'apps.security.audit.custom_exception_handler',
@@ -193,17 +186,41 @@ REST_FRAMEWORK = {
 cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
 CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True').lower() in ('true', '1')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 # ==============================================================================
-# ISO 27001 Security Headers
+# ISO 27001 Security Headers & Proxy Trust
 # ==============================================================================
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+TRUST_X_FORWARDED_FOR = os.getenv('TRUST_X_FORWARDED_FOR', 'False').lower() in ('true', '1')
 SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER', 'True').lower() in ('true', '1')
 SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF', 'True').lower() in ('true', '1')
 X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
 
-# JWT Authentication Secrets
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
-JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 168))
+# JWT Authentication Secrets (Segregated from SECRET_KEY in production)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', '').strip()
+if not JWT_SECRET_KEY:
+    if DEBUG or _IS_TEST_RUN:
+        JWT_SECRET_KEY = f"{SECRET_KEY}-jwt-dev"
+    else:
+        raise ImproperlyConfigured('JWT_SECRET_KEY debe estar configurada de forma independiente en producción.')
+
+if not DEBUG and not _IS_TEST_RUN:
+    _insecure_jwt_keys = {
+        'inacap-jwt-super-secret-iso27001-signature-key-2026',
+        'jwt-super-secret-key-change-in-production-2026',
+    }
+    if (
+        JWT_SECRET_KEY == SECRET_KEY
+        or JWT_SECRET_KEY in _insecure_jwt_keys
+        or JWT_SECRET_KEY.startswith('django-insecure-')
+        or JWT_SECRET_KEY.upper().startswith('CHANGE_ME')
+    ):
+        raise ImproperlyConfigured(
+            'JWT_SECRET_KEY no puede usar valores inseguros por defecto ni coincidir con SECRET_KEY en producción.'
+        )
+
+JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 24))
 
 # Media Files (Uploaded product images: 900x600, <=1MB)
 MEDIA_URL = '/media/'

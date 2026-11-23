@@ -122,7 +122,7 @@ function handleProceedToPayment() {
               <!-- Quantity Controls -->
               <div class="flex items-center border border-brand-border rounded-md overflow-hidden bg-brand-surface-subtle">
                 <button
-                  @click="cartStore.addItem(item.product, -1)"
+                  @click="cartStore.updateQuantity(item.product.id, -1)"
                   class="px-2 py-0.5 hover:bg-brand-primary-subtle text-slate-600 transition-colors"
                   title="Disminuir"
                 >

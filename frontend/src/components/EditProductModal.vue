@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useProductStore } from '../stores/products'
-import { blockDangerousCharsOnKeypress, sanitizeInput, sanitizeEventInput } from '../utils/security'
+import { sanitizeInput, sanitizeEventInput, resizeImageBeforeUpload } from '../utils/security'
 import {
   X,
   Upload,
@@ -38,10 +38,38 @@ const fileError = ref(null)
 const localError = ref(null)
 const isSubmitting = ref(false)
 
+function revokePhotoUrl(photo) {
+  if (photo && !photo.isExisting && typeof photo.url === 'string' && photo.url.startsWith('blob:')) {
+    URL.revokeObjectURL(photo.url)
+  }
+}
+
+function revokeAllBlobUrls(list) {
+  for (const photo of list) {
+    revokePhotoUrl(photo)
+  }
+}
+
+watch(
+  () => productStore.editModalOpen,
+  (open) => {
+    if (!open) {
+      revokeAllBlobUrls(photos.value)
+      photos.value = []
+      confirmDeleteId.value = null
+    }
+  }
+)
+
+onUnmounted(() => {
+  revokeAllBlobUrls(photos.value)
+})
+
 // Cargar datos cuando se abre el modal
 watch(
   () => productStore.editingProduct,
   (prod) => {
+    revokeAllBlobUrls(photos.value)
     if (prod) {
       form.value = {
         id: prod.id,
@@ -114,6 +142,8 @@ function cancelDelete() {
 }
 
 function confirmDelete(id) {
+  const target = photos.value.find((p) => p.id === id)
+  revokePhotoUrl(target)
   photos.value = photos.value.filter((p) => p.id !== id)
   confirmDeleteId.value = null
 }
@@ -193,24 +223,29 @@ async function executeSave(redirectAfter = false) {
   formData.append('installments', form.value.installments)
 
   const existingUrls = []
-  photos.value.forEach((p) => {
+  const uploadedFiles = []
+  for (const p of photos.value) {
     if (p.file) {
-      formData.append('image_files', p.file)
+      const scaledFile = await resizeImageBeforeUpload(p.file, 900, 600, 0.85)
+      uploadedFiles.push(scaledFile)
+      formData.append('image_files', scaledFile)
     } else if (p.url) {
       existingUrls.push(p.url)
     }
-  })
+  }
   if (existingUrls.length > 0) {
     formData.append('existing_images', JSON.stringify(existingUrls))
     formData.append('image_url', existingUrls[0])
-  } else if (photos.value.length > 0 && photos.value[0].file) {
-    formData.append('image_file', photos.value[0].file)
+  } else if (uploadedFiles.length > 0) {
+    formData.append('image_file', uploadedFiles[0])
   }
 
   const res = await productStore.updateProduct(form.value.slug, formData)
   isSubmitting.value = false
 
   if (res.success) {
+    revokeAllBlobUrls(photos.value)
+    photos.value = []
     productStore.closeEditModal()
     if (redirectAfter && res.product?.slug) {
       productStore.fetchProductBySlug(res.product.slug)
@@ -266,7 +301,6 @@ async function executeSave(redirectAfter = false) {
           <input
             v-model="form.title"
             type="text"
-            @keypress="blockDangerousCharsOnKeypress"
             @input="onTitleInput"
             placeholder="Ej: Teclado Mecánico Custom Pro RGB Wireless"
             class="w-full bg-slate-50 border border-brand-border focus:border-brand-accent focus:bg-white rounded-lg px-3.5 py-2 text-xs text-slate-800 focus:outline-none transition-colors"
@@ -365,7 +399,6 @@ async function executeSave(redirectAfter = false) {
 
           <textarea
             v-model="form.caracteristicas_ads"
-            @keypress="blockDangerousCharsOnKeypress"
             @input="onAdsInput"
             rows="4"
             placeholder="Ingresa las especificaciones completas para publicidad ADS (procesador, componentes, compatibilidad, certificaciones y garantía)..."
@@ -384,7 +417,6 @@ async function executeSave(redirectAfter = false) {
           </label>
           <textarea
             v-model="form.description"
-            @keypress="blockDangerousCharsOnKeypress"
             @input="onDescriptionInput"
             rows="3"
             placeholder="Detalles sobre el uso, empaque y condiciones del producto..."

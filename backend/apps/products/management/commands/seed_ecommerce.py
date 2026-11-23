@@ -1,23 +1,48 @@
-from django.core.management.base import BaseCommand
-from apps.accounts.models import UserCredential, UserProfile, Persona, Rol, UserRol
+import os
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
+from apps.accounts.models import UserCredential, Rol
 from apps.products.models import Category, Product
+
 
 class Command(BaseCommand):
     help = 'Seeds initial demonstration users, Persona objects, UserProfiles, Roles and MercadoLibre-style products.'
 
     def handle(self, *args, **options):
+        admin_password = os.getenv('SEED_ADMIN_PASSWORD')
+        seller_password = os.getenv('SEED_SELLER_PASSWORD')
+        buyer_password = os.getenv('SEED_BUYER_PASSWORD')
+
+        if not settings.DEBUG:
+            missing = []
+            if not admin_password:
+                missing.append('SEED_ADMIN_PASSWORD')
+            if not seller_password:
+                missing.append('SEED_SELLER_PASSWORD')
+            if not buyer_password:
+                missing.append('SEED_BUYER_PASSWORD')
+            if missing:
+                raise CommandError(
+                    "En modo producción (DEBUG=False), es obligatorio definir las variables de entorno: "
+                    + ", ".join(missing)
+                )
+        else:
+            admin_password = admin_password or 'Admin1234!'
+            seller_password = seller_password or 'Vendedor1234!'
+            buyer_password = buyer_password or 'Comprador1234!'
+
         self.stdout.write(self.style.NOTICE('Iniciando semillero de datos de arquitectura User-UserProfile-Persona...'))
 
         # 1. Crear Roles del Sistema
-        rol_admin, _ = Rol.objects.get_or_create(
+        Rol.objects.get_or_create(
             codigo='ADMIN',
             defaults={'nombre': 'Administrador del Sistema', 'descripcion': 'Control total de la plataforma'}
         )
-        rol_seller, _ = Rol.objects.get_or_create(
+        Rol.objects.get_or_create(
             codigo='SELLER',
             defaults={'nombre': 'Vendedor Autorizado', 'descripcion': 'Permiso para publicar y vender productos'}
         )
-        rol_buyer, _ = Rol.objects.get_or_create(
+        Rol.objects.get_or_create(
             codigo='BUYER',
             defaults={'nombre': 'Cliente / Comprador', 'descripcion': 'Navegación y compra segura'}
         )
@@ -28,7 +53,7 @@ class Command(BaseCommand):
             defaults={'role': UserCredential.ROLE_ADMIN, 'is_staff': True, 'is_superuser': True}
         )
         if created:
-            admin_user.set_password('Admin1234!')
+            admin_user.set_password(admin_password)
             admin_user.save()
             admin_profile = admin_user.user_profile
             admin_profile.public_alias = 'Inacap_Oficial_Store'
@@ -39,14 +64,14 @@ class Command(BaseCommand):
             admin_profile.reputation_score = 5.00
             admin_profile.is_verified_seller = True
             admin_profile.save()
-            self.stdout.write(self.style.SUCCESS('Creado Administrador: admin@inacap.cl (Admin1234!)'))
+            self.stdout.write(self.style.SUCCESS('Creado Administrador: admin@inacap.cl'))
 
         seller_user, created = UserCredential.objects.get_or_create(
             email='vendedor@inacap.cl',
             defaults={'role': UserCredential.ROLE_SELLER}
         )
         if created:
-            seller_user.set_password('Vendedor1234!')
+            seller_user.set_password(seller_password)
             seller_user.save()
             seller_profile = seller_user.user_profile
             seller_profile.public_alias = 'TechChile_Plaza'
@@ -59,13 +84,17 @@ class Command(BaseCommand):
             seller_profile.is_official_store = True
             seller_profile.official_store_name = 'TechChile Oficial'
             seller_profile.official_store_url = 'https://techchile.cl'
+            if hasattr(seller_profile, 'official_store_status'):
+                seller_profile.official_store_status = 'APPROVED'
             seller_profile.save()
-            self.stdout.write(self.style.SUCCESS('Creado Vendedor: vendedor@inacap.cl (Vendedor1234!)'))
+            self.stdout.write(self.style.SUCCESS('Creado Vendedor: vendedor@inacap.cl'))
         else:
             seller_profile = seller_user.user_profile
             seller_profile.is_official_store = True
             seller_profile.official_store_name = 'TechChile Oficial'
             seller_profile.official_store_url = 'https://techchile.cl'
+            if hasattr(seller_profile, 'official_store_status'):
+                seller_profile.official_store_status = 'APPROVED'
             seller_profile.save()
 
         buyer_user, created = UserCredential.objects.get_or_create(
@@ -73,7 +102,7 @@ class Command(BaseCommand):
             defaults={'role': UserCredential.ROLE_BUYER}
         )
         if created:
-            buyer_user.set_password('Comprador1234!')
+            buyer_user.set_password(buyer_password)
             buyer_user.save()
             buyer_profile = buyer_user.user_profile
             buyer_profile.public_alias = 'Cliente_Estudiante_Inacap'
@@ -82,7 +111,7 @@ class Command(BaseCommand):
             buyer_profile.persona.rut = '21.345.678-9'
             buyer_profile.persona.save()
             buyer_profile.save()
-            self.stdout.write(self.style.SUCCESS('Creado Comprador: comprador@inacap.cl (Comprador1234!)'))
+            self.stdout.write(self.style.SUCCESS('Creado Comprador: comprador@inacap.cl'))
 
         # 3. Categorías Típicas de E-Commerce y Categoría Obligatoria "Otros"
         categories_data = [
@@ -108,7 +137,6 @@ class Command(BaseCommand):
                 slug=c['slug'],
                 defaults={'name': c['name'], 'icon_name': c['icon_name']}
             )
-            # Asegurar nombre actualizado
             cat_obj.name = c['name']
             cat_obj.icon_name = c['icon_name']
             cat_obj.save()

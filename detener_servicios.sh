@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "Deteniendo procesos de Django y Vite/Node..."
+echo "Deteniendo procesos de Tienda Vecina registrados..."
 
-if [ -f "$DIR/backend.pid" ]; then
-    kill $(cat "$DIR/backend.pid") 2>/dev/null || true
-    rm -f "$DIR/backend.pid"
-fi
+stop_pid_file() {
+    local pid_file="$1"
+    local name="$2"
+    if [ -f "$pid_file" ]; then
+        local pid
+        pid="$(cat "$pid_file" 2>/dev/null || true)"
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "Deteniendo $name (PID $pid)..."
+            kill -TERM "$pid" 2>/dev/null || true
+            for _ in 1 2 3 4 5; do
+                if ! kill -0 "$pid" 2>/dev/null; then
+                    break
+                fi
+                sleep 1
+            done
+        fi
+        rm -f "$pid_file"
+    fi
+}
 
-if [ -f "$DIR/frontend.pid" ]; then
-    kill $(cat "$DIR/frontend.pid") 2>/dev/null || true
-    rm -f "$DIR/frontend.pid"
-fi
+stop_pid_file "$DIR/backend.pid" "Backend Gunicorn"
+stop_pid_file "$DIR/frontend.pid" "Frontend Vite"
 
-# Matar procesos remanentes en los puertos 8000 y 5173 si existen
-fuser -k 8000/tcp 2>/dev/null || true
-fuser -k 5173/tcp 2>/dev/null || true
-
-echo "Servidores detenidos."
+echo "Servicios propios detenidos de forma segura."

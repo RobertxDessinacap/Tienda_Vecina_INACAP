@@ -5,7 +5,12 @@ export const useCartStore = defineStore('cart', {
   state: () => {
     let saved = []
     try {
-      saved = JSON.parse(localStorage.getItem('inacap_cart_items') || '[]')
+      const parsed = JSON.parse(localStorage.getItem('inacap_cart_items') || '[]')
+      if (Array.isArray(parsed)) {
+        saved = parsed.filter(
+          (it) => it && it.product && it.product.id != null && Number.isFinite(Number(it.quantity)) && Number(it.quantity) > 0
+        )
+      }
     } catch {
       saved = []
     }
@@ -25,7 +30,8 @@ export const useCartStore = defineStore('cart', {
   },
 
   getters: {
-    totalItemsCount: (state) => state.items.reduce((acc, it) => acc + (it.quantity || 1), 0),
+    totalItemsCount: (state) =>
+      state.items.reduce((acc, it) => acc + Math.max(0, Number(it.quantity) || 0), 0),
     hasItems: (state) => state.items.length > 0,
   },
 
@@ -35,13 +41,23 @@ export const useCartStore = defineStore('cart', {
     },
 
     addItem(product, quantity = 1) {
+      if (!product || product.id == null) return
+      const qty = Number(quantity)
+      if (!Number.isInteger(qty)) return
+
       const existing = this.items.find((it) => it.product.id === product.id)
       if (existing) {
-        existing.quantity += quantity
+        const nextQty = (Number(existing.quantity) || 0) + qty
+        if (nextQty <= 0) {
+          this.removeItem(product.id)
+          return
+        }
+        existing.quantity = nextQty
       } else {
+        if (qty <= 0) return
         this.items.push({
           product,
-          quantity,
+          quantity: qty,
         })
       }
       this.persist()
@@ -59,12 +75,16 @@ export const useCartStore = defineStore('cart', {
     },
 
     updateQuantity(productId, delta) {
+      const d = Number(delta)
+      if (!Number.isInteger(d)) return
+
       const item = this.items.find((it) => it.product.id === productId)
       if (item) {
-        item.quantity += delta
-        if (item.quantity <= 0) {
+        const nextQty = (Number(item.quantity) || 0) + d
+        if (nextQty <= 0) {
           this.removeItem(productId)
         } else {
+          item.quantity = nextQty
           this.persist()
           this.backendCalculation = null
           this.calculateSafeTotal()
@@ -97,6 +117,7 @@ export const useCartStore = defineStore('cart', {
     closePaymentModal() {
       this.paymentModalOpen = false
       this.transbankData = null
+      this.paymentVoucher = null
       this.paymentError = null
     },
 

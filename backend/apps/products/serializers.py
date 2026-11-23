@@ -1,25 +1,89 @@
+import html
+import json
 import re
+from urllib.parse import unquote
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.files.storage import default_storage
+from django.core.validators import URLValidator
+from django.utils.text import slugify
 from rest_framework import serializers
-from django.utils.html import escape
 from apps.products.models import Product, Category, ProductReview
 from apps.accounts.serializers import UserProfileSerializer
 from apps.products.utils import process_and_secure_product_image
 
-FORBIDDEN_XSS_REGEX = re.compile(r'[<>{}\[\]*\\;^$|~`]')
-MALICIOUS_SCRIPT_PATTERNS = re.compile(r'(javascript:|data:|vbscript:|on\w+=|<\s*script|<\s*iframe|<\s*embed|<\s*object)', re.IGNORECASE)
+# Permite puntuación comercial ($ * [ ] ; ( ) % + - / : , .) y rechaza etiquetas HTML y patrones peligrosos
+HTML_ANGLE_BRACKETS_REGEX = re.compile(r'[<>]')
+MALICIOUS_SCRIPT_PATTERNS = re.compile(
+    r'('
+    r'javascript\s*:|'
+    r'vbscript\s*:|'
+    r'data\s*:\s*(?:text/html|text/javascript|application/javascript|application/xhtml\+xml|image/svg\+xml)|'
+    r'\bon[a-z]+\s*=|'
+    r'<\s*/?\s*(?:script|iframe|embed|object|svg|math|link|meta|base|form)\b'
+    r')',
+    re.IGNORECASE
+)
+COMPACT_SCHEME_PATTERNS = re.compile(
+    r'(?:javascript:|vbscript:|data:(?:text/html|text/javascript|application/javascript|application/xhtml\+xml|image/svg\+xml))',
+    re.IGNORECASE
+)
+_HTTP_URL_VALIDATOR = URLValidator(schemes=['http', 'https'])
+
 
 def validate_xss_safe(text, field_name):
     if not text:
         return text
-    if FORBIDDEN_XSS_REGEX.search(text):
-        raise serializers.ValidationError(
-            f"El campo '{field_name}' contiene caracteres especiales no permitidos por seguridad anti-XSS ([ ] {{ }} * < > \\ ; etc.)."
-        )
-    if MALICIOUS_SCRIPT_PATTERNS.search(text):
-        raise serializers.ValidationError(
-            f"El campo '{field_name}' contiene secuencias no permitidas (script o inyección detectada)."
-        )
+    if not isinstance(text, str):
+        text = str(text)
+
+    candidate = text
+    prev = None
+    for _ in range(10):
+        # Evaluar estado actual y versión sin caracteres de control
+        no_ctrl = re.sub(r'[\x00-\x1f\x7f]+', '', candidate)
+        compact_ws = re.sub(r'\s+', '', no_ctrl)
+
+        if HTML_ANGLE_BRACKETS_REGEX.search(candidate) or HTML_ANGLE_BRACKETS_REGEX.search(no_ctrl):
+            raise serializers.ValidationError(
+                f"El campo '{field_name}' contiene etiquetas o caracteres HTML (< >) no permitidos por seguridad anti-XSS."
+            )
+        if (
+            MALICIOUS_SCRIPT_PATTERNS.search(candidate)
+            or MALICIOUS_SCRIPT_PATTERNS.search(no_ctrl)
+            or COMPACT_SCHEME_PATTERNS.search(compact_ws)
+        ):
+            raise serializers.ValidationError(
+                f"El campo '{field_name}' contiene secuencias peligrosas no permitidas por seguridad anti-XSS."
+            )
+
+        if candidate == prev:
+            break
+        prev = candidate
+        candidate = html.unescape(unquote(candidate))
+
     return text.strip()
+
+
+def _validate_image_ref(value):
+    if not isinstance(value, str):
+        raise serializers.ValidationError({"existing_images": "Cada referencia de imagen debe ser una cadena válida."})
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if re.search(r'[\x00-\x1f\x7f]', cleaned):
+        raise serializers.ValidationError({"existing_images": "La URL de imagen contiene caracteres no permitidos."})
+    if cleaned.startswith('/media/'):
+        if '..' in cleaned or '\\' in cleaned or cleaned.startswith('//'):
+            raise serializers.ValidationError({"existing_images": "Ruta de media inválida."})
+        return cleaned
+    try:
+        _HTTP_URL_VALIDATOR(cleaned)
+    except DjangoValidationError:
+        raise serializers.ValidationError({
+            "existing_images": f"URL de imagen inválida o esquema no permitido: '{cleaned}'. Solo se permiten rutas /media/ o URLs http/https."
+        })
+    return cleaned
+
 
 class CategorySerializer(serializers.ModelSerializer):
     products_count = serializers.IntegerField(source='products.count', read_only=True)
@@ -32,13 +96,12 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     seller_alias = serializers.CharField(source='seller_profile.public_alias', read_only=True)
-    # Nombre del usuario que ingresó (obtenido desde Persona -> UserProfile)
-    seller_nombre = serializers.CharField(source='seller_profile.persona.nombre_completo', read_only=True)
+    seller_nombre = serializers.SerializerMethodField()
     seller_reputation = serializers.FloatField(source='seller_profile.reputation_score', read_only=True)
     seller = UserProfileSerializer(source='seller_profile', read_only=True)
     is_official_store = serializers.BooleanField(source='seller_profile.is_official_store', read_only=True)
-    seller_official_store_name = serializers.CharField(source='seller_profile.official_store_name', read_only=True)
-    seller_official_store_url = serializers.CharField(source='seller_profile.official_store_url', read_only=True)
+    seller_official_store_name = serializers.SerializerMethodField()
+    seller_official_store_url = serializers.SerializerMethodField()
     discount_percentage = serializers.ReadOnlyField()
     display_image_url = serializers.ReadOnlyField()
     images = serializers.ListField(child=serializers.CharField(), source='all_images', read_only=True)
@@ -75,6 +138,26 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'slug', 'seller', 'rating', 'reviews_count', 'created_at', 'display_image_url']
+
+    def get_seller_nombre(self, obj):
+        profile = getattr(obj, 'seller_profile', None)
+        if not profile:
+            return ''
+        if profile.is_official_store and profile.official_store_name:
+            return profile.official_store_name
+        return profile.public_alias
+
+    def get_seller_official_store_name(self, obj):
+        profile = getattr(obj, 'seller_profile', None)
+        if profile and profile.is_official_store:
+            return profile.official_store_name
+        return ''
+
+    def get_seller_official_store_url(self, obj):
+        profile = getattr(obj, 'seller_profile', None)
+        if profile and profile.is_official_store:
+            return profile.official_store_url
+        return ''
 
 
 class ProductCreateUpdateSerializer(serializers.ModelSerializer):
@@ -124,50 +207,85 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
             )
         return cleaned
 
-    def _extract_and_process_images(self, request, validated_data, instance=None):
-        import json
-        from django.core.files.storage import default_storage
+    def validate_image_url(self, value):
+        if value:
+            validated = _validate_image_ref(value)
+            return validated or ''
+        return value
 
-        image_files = []
-        if request and hasattr(request, 'FILES'):
-            image_files = request.FILES.getlist('image_files')
-            if not image_files and 'image_file' in request.FILES:
-                image_files = [request.FILES['image_file']]
-
+    def _parse_existing_images(self, request):
         existing_images = []
-        if request and hasattr(request, 'data'):
-            raw = request.data.getlist('existing_images') if hasattr(request.data, 'getlist') else request.data.get('existing_images')
+        if request and hasattr(request, 'data') and hasattr(request.data, 'get'):
+            raw = (
+                request.data.getlist('existing_images')
+                if hasattr(request.data, 'getlist')
+                else request.data.get('existing_images')
+            )
             if isinstance(raw, str):
                 try:
                     parsed = json.loads(raw)
                     if isinstance(parsed, list):
-                        existing_images = [str(x).strip() for x in parsed if x]
-                    elif parsed:
+                        existing_images = [str(x).strip() for x in parsed if x is not None and str(x).strip()]
+                    elif parsed is not None and str(parsed).strip():
                         existing_images = [str(parsed).strip()]
                 except Exception:
-                    existing_images = [raw.strip()] if raw.strip() else []
+                    if raw.strip():
+                        existing_images = [raw.strip()]
             elif isinstance(raw, list):
                 for item in raw:
                     if isinstance(item, str) and item.startswith('['):
                         try:
                             sub = json.loads(item)
                             if isinstance(sub, list):
-                                existing_images.extend([str(x).strip() for x in sub if x])
+                                existing_images.extend(
+                                    [str(x).strip() for x in sub if x is not None and str(x).strip()]
+                                )
                                 continue
                         except Exception:
                             pass
-                    if item:
+                    if item is not None and str(item).strip():
                         existing_images.append(str(item).strip())
+
+        validated_existing = []
+        for img_ref in existing_images:
+            validated = _validate_image_ref(img_ref)
+            if validated:
+                validated_existing.append(validated)
+        return validated_existing
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request is not None:
+            self._validated_existing_images = self._parse_existing_images(request)
+        return attrs
+
+    def _extract_and_process_images(self, request, validated_data, instance=None):
+        image_files = []
+        if request and hasattr(request, 'FILES'):
+            image_files = request.FILES.getlist('image_files')
+            if not image_files and 'image_file' in request.FILES:
+                image_files = [request.FILES['image_file']]
+
+        if hasattr(self, '_validated_existing_images'):
+            existing_images = list(self._validated_existing_images)
+        else:
+            existing_images = self._parse_existing_images(request)
 
         if not existing_images and not instance:
             single_url = validated_data.get('image_url')
             if single_url:
-                existing_images.append(single_url)
+                validated_single = _validate_image_ref(single_url)
+                if validated_single:
+                    existing_images.append(validated_single)
 
         new_urls = []
         primary_file = None
         for idx, f in enumerate(image_files[:5]):
-            proc = process_and_secure_product_image(f)
+            try:
+                proc = process_and_secure_product_image(f)
+            except DjangoValidationError as exc:
+                msg = exc.messages[0] if hasattr(exc, 'messages') and exc.messages else str(exc)
+                raise serializers.ValidationError({"image_files": msg})
             if idx == 0 and not existing_images:
                 primary_file = proc
             path = default_storage.save(f"productos/{proc.name}", proc)
@@ -196,7 +314,6 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         return product
 
     def update(self, instance, validated_data):
-        from django.utils.text import slugify
         request = self.context.get('request')
         validated_data.pop('image_file', None)
         combined_images, primary_file = self._extract_and_process_images(request, validated_data, instance=instance)

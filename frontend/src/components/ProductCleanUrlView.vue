@@ -4,6 +4,7 @@ import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
 import { useLocationStore } from '../stores/location'
 import { useAuthStore } from '../stores/auth'
+import { isValidHttpsUrl } from '../utils/security'
 import {
   ArrowLeft,
   Truck,
@@ -18,6 +19,7 @@ import {
   ExternalLink,
   Edit3,
   Store,
+  AlertTriangle,
 } from 'lucide-vue-next'
 
 const productStore = useProductStore()
@@ -86,6 +88,32 @@ function handleBuyNow() {
     cartStore.addItem(product.value, 1)
     cartStore.openPaymentModal()
   }
+}
+
+const pendingExternalUrl = ref(null)
+const pendingExternalHost = computed(() => {
+  if (!pendingExternalUrl.value) return ''
+  try {
+    return new URL(pendingExternalUrl.value).hostname
+  } catch {
+    return ''
+  }
+})
+
+function openExternalStoreConfirm(url) {
+  if (!isValidHttpsUrl(url)) return
+  pendingExternalUrl.value = url.trim()
+}
+
+function confirmExternalRedirect() {
+  if (isValidHttpsUrl(pendingExternalUrl.value)) {
+    window.open(pendingExternalUrl.value, '_blank', 'noopener,noreferrer')
+  }
+  pendingExternalUrl.value = null
+}
+
+function cancelExternalRedirect() {
+  pendingExternalUrl.value = null
 }
 </script>
 
@@ -244,18 +272,21 @@ function handleBuyNow() {
               </span>
             </div>
             <div class="text-slate-800 text-xs font-semibold">
-              Vendido por: <span class="text-slate-950 font-extrabold">{{ product.seller_nombre || product.seller_alias }}</span>
+              Vendido por:
+              <span class="text-slate-950 font-extrabold">
+                {{ product.is_official_store ? (product.seller_official_store_name || product.seller_alias) : product.seller_alias }}
+              </span>
             </div>
 
             <!-- Tienda Oficial (Solo si está registrada) -->
             <div v-if="product.is_official_store && product.seller_official_store_name" class="text-slate-700 text-xs flex items-center gap-1.5 pt-1">
               <span class="font-medium text-slate-600">Tienda oficial:</span>
-              <template v-if="product.seller_official_store_url">
+              <template v-if="isValidHttpsUrl(product.seller_official_store_url)">
                 <a
                   :href="product.seller_official_store_url"
-                  target="_blank"
+                  @click.prevent="openExternalStoreConfirm(product.seller_official_store_url)"
                   rel="noopener noreferrer"
-                  class="font-bold text-brand-accent hover:underline inline-flex items-center gap-1"
+                  class="font-bold text-brand-accent hover:underline inline-flex items-center gap-1 cursor-pointer"
                 >
                   <span>{{ product.seller_official_store_name }}</span>
                   <ExternalLink class="w-3 h-3" />
@@ -345,6 +376,47 @@ function handleBuyNow() {
         <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
           {{ product.description }}
         </p>
+      </div>
+    </div>
+
+    <!-- External Store Redirect Confirmation Modal -->
+    <div
+      v-if="pendingExternalUrl"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      @click.self="cancelExternalRedirect"
+    >
+      <div class="bg-brand-surface rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-brand-border">
+        <div class="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+          <AlertTriangle class="w-6 h-6" />
+        </div>
+        <div class="text-center space-y-2">
+          <h3 class="text-base font-bold text-slate-900">Estás saliendo de Tienda Vecina</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Vas a ser redirigido a un sitio externo perteneciente al vendedor. Verifica que confías en el dominio de destino:
+          </p>
+          <div class="bg-slate-50 border border-brand-border rounded-xl p-3 text-left space-y-1">
+            <span class="text-[10px] uppercase font-bold text-slate-500 block">Dominio de destino</span>
+            <strong class="text-sm font-mono text-slate-900 block break-all">{{ pendingExternalHost }}</strong>
+            <span class="text-[10px] text-slate-400 block break-all">{{ pendingExternalUrl }}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 pt-1">
+          <button
+            type="button"
+            @click="cancelExternalRedirect"
+            class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-lg transition-colors cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            @click="confirmExternalRedirect"
+            class="flex-1 bg-brand-accent hover:bg-brand-accent-hover text-white font-bold text-xs py-2.5 rounded-lg transition-colors shadow-sm inline-flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>Continuar al sitio externo</span>
+            <ExternalLink class="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   </div>

@@ -12,8 +12,10 @@ import {
   CreditCard,
 } from 'lucide-vue-next'
 import { useProductStore } from '../stores/products'
+import { useCartStore } from '../stores/cart'
 
 const productStore = useProductStore()
+const cartStore = useCartStore()
 const product = computed(() => productStore.selectedProduct)
 
 const selectedImageIndex = ref(0)
@@ -52,7 +54,16 @@ const installmentValue = computed(() => {
 })
 
 function handleBuy() {
-  alert(`¡Gracias por tu compra de: "${product.value.title}"!\nTu pedido cuenta con garantía oficial de satisfacción.`)
+  if (!product.value) return
+  productStore.closeDetail()
+  cartStore.addItem(product.value, 1)
+  cartStore.openPaymentModal()
+}
+
+function handleAddToCart() {
+  if (!product.value) return
+  productStore.closeDetail()
+  cartStore.addItem(product.value, 1)
 }
 </script>
 
@@ -211,7 +222,7 @@ function handleBuy() {
               Comprar ahora
             </button>
             <button
-              @click="alert('Producto añadido al carrito.')"
+              @click="handleAddToCart"
               class="w-full bg-brand-accent-soft hover:bg-brand-primary-subtle text-brand-accent font-bold py-2.5 rounded-lg text-sm transition-colors border border-brand-accent-border"
             >
               Agregar al carrito

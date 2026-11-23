@@ -13,10 +13,11 @@ import {
   ChevronRight,
   ExternalLink,
   Printer,
-  Sparkles,
+  AlertCircle,
 } from 'lucide-vue-next'
 import { useCartStore } from '../stores/cart'
 import { useProductStore } from '../stores/products'
+import { isValidHttpsUrl } from '../utils/security'
 
 const cartStore = useCartStore()
 const productStore = useProductStore()
@@ -96,13 +97,6 @@ async function handleInitTransbank() {
   await cartStore.initPayment(selectedMethod.value.id)
 }
 
-async function handleCommitTransbank() {
-  const res = await cartStore.commitPayment()
-  if (res?.success) {
-    productStore.fetchProducts() // Refrescar stock en catálogo
-  }
-}
-
 function printVoucher() {
   window.print()
 }
@@ -130,6 +124,15 @@ function printVoucher() {
         >
           <X class="w-4 h-4" />
         </button>
+      </div>
+
+      <!-- Error Banner -->
+      <div
+        v-if="cartStore.paymentError"
+        class="mx-5 mt-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl flex items-start gap-2 text-xs"
+      >
+        <AlertCircle class="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+        <span>{{ cartStore.paymentError }}</span>
       </div>
 
       <!-- ================= PAGO APROBADO: VOUCHER TRANSBANK ================= -->
@@ -161,7 +164,7 @@ function printVoucher() {
           </div>
           <div class="flex justify-between border-b border-brand-border pb-1.5">
             <span class="text-slate-500">Tarjeta Utilizada:</span>
-            <span class="font-mono text-slate-800">•••• •••• •••• {{ cartStore.paymentVoucher.card_number || '6623' }}</span>
+            <span class="font-mono text-slate-800">•••• •••• •••• {{ cartStore.paymentVoucher.card_last_digits || '----' }}</span>
           </div>
           <div class="flex justify-between border-b border-brand-border pb-1.5">
             <span class="text-slate-500">Monto Transaccionado:</span>
@@ -191,7 +194,7 @@ function printVoucher() {
         </div>
       </div>
 
-      <!-- ================= PANTALLA OFICIAL TRANSBANK EN CURSO ================= -->
+      <!-- ================= REDIRECCIÓN OFICIAL A TRANSBANK WEBPAY PLUS ================= -->
       <div v-else-if="cartStore.transbankData" class="p-6 space-y-4">
         <!-- Transbank Official Header -->
         <div class="bg-red-600 text-white p-4 rounded-xl flex items-center justify-between shadow-xs">
@@ -209,48 +212,43 @@ function printVoucher() {
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-500">Monto a Pagar:</span>
-            <span class="text-base font-bold text-slate-900">{{ formatCLP(cartStore.transbankData.amount) }}</span>
+            <span class="text-base font-bold text-slate-900">{{ formatCLP(cartStore.transbankData.total_amount) }}</span>
           </div>
         </div>
 
-        <!-- Simulated Webpay payment interactive form -->
+        <!-- Real Webpay Plus POST redirect form -->
         <div class="border border-brand-border rounded-xl p-4 bg-brand-surface space-y-3">
-          <span class="text-xs font-bold text-slate-800 block">Simulador Oficial de Pago Seguro Webpay Plus</span>
-          <p class="text-[11px] text-slate-500">
-            Ingresa los datos de tu tarjeta de prueba para completar la transacción:
-          </p>
-          <div class="space-y-2">
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Número de Tarjeta de Débito (Redcompra)</label>
-              <input
-                type="text"
-                value="•••• •••• •••• 6623 (Débito Aprobada)"
-                readonly
-                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono"
-              />
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Clave de Seguridad Webpay</label>
-              <input
-                type="password"
-                value="1213"
-                readonly
-                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono"
-              />
-            </div>
+          <div class="flex items-start gap-2 text-[11px] text-slate-600">
+            <ShieldCheck class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <p>
+              Serás redirigido al portal oficial cifrado de <strong>Transbank Webpay Plus</strong> para autorizar tu pago de forma segura.
+            </p>
           </div>
 
-          <button
-            @click="handleCommitTransbank"
-            :disabled="cartStore.paymentLoading"
-            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-1.5"
+          <form
+            v-if="isValidHttpsUrl(cartStore.transbankData.url)"
+            method="POST"
+            :action="cartStore.transbankData.url"
+            class="space-y-2"
           >
-            <span v-if="cartStore.paymentLoading">Autorizando con el Banco emisor...</span>
-            <span v-else class="flex items-center gap-1.5">
-              <CheckCircle2 class="w-4 h-4" />
-              <span>Pagar y Autorizar Transacción Transbank</span>
-            </span>
-          </button>
+            <input type="hidden" name="token_ws" :value="cartStore.transbankData.token" />
+            <button
+              type="submit"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Lock class="w-4 h-4" />
+              <span>Continuar al Portal Seguro Webpay Plus</span>
+              <ExternalLink class="w-3.5 h-3.5" />
+            </button>
+          </form>
+
+          <div
+            v-else
+            class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-[11px] flex items-center gap-2"
+          >
+            <AlertCircle class="w-4 h-4 shrink-0" />
+            <span>La URL de redirección retornada por la pasarela no es un enlace HTTPS válido.</span>
+          </div>
         </div>
       </div>
 

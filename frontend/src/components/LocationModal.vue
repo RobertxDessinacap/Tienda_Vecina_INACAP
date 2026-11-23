@@ -11,7 +11,7 @@ import {
   Search,
 } from 'lucide-vue-next'
 import { useLocationStore } from '../stores/location'
-import { blockDangerousCharsOnKeypress, sanitizeEventInput, sanitizeInput } from '../utils/security'
+import { sanitizeEventInput, sanitizeInput } from '../utils/security'
 
 const locationStore = useLocationStore()
 
@@ -24,11 +24,11 @@ function handleSelect(fullLocation) {
 }
 
 function handleSaveCustom() {
-  if (!customCity.value.trim()) return
-  const formatted = customStreet.value.trim()
-    ? `${customStreet.value.trim()}, ${customCity.value.trim()}`
-    : customCity.value.trim()
-  locationStore.setLocation(formatted, customStreet.value.trim())
+  const cleanCity = sanitizeInput(customCity.value)
+  const cleanStreet = sanitizeInput(customStreet.value)
+  if (!cleanCity) return
+  const formatted = cleanStreet ? `${cleanStreet}, ${cleanCity}` : cleanCity
+  locationStore.setLocation(formatted, cleanStreet)
   customCity.value = ''
   customStreet.value = ''
   showCustomForm.value = false
@@ -136,7 +136,6 @@ function handleSaveCustom() {
               <input
                 v-model="customCity"
                 type="text"
-                @keypress="blockDangerousCharsOnKeypress"
                 @input="e => sanitizeEventInput(e, v => customCity = v)"
                 placeholder="Ej: Ñuñoa, Santiago o La Serena"
                 required
@@ -149,7 +148,6 @@ function handleSaveCustom() {
               <input
                 v-model="customStreet"
                 type="text"
-                @keypress="blockDangerousCharsOnKeypress"
                 @input="e => sanitizeEventInput(e, v => customStreet = v)"
                 placeholder="Ej: Av. Apoquindo 4800, depto 402"
                 class="w-full p-2 bg-brand-surface rounded-lg border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-accent text-xs"

@@ -1,60 +1,61 @@
 /**
  * Tienda Vecina Security & Anti-XSS Engine
- * 
- * Implementación de defensas en profundidad conforme a estándares OWASP Top 10 y Cheat Sheet:
- * 1. Restricción preventiva de caracteres peligrosos en inputs ([ } * < > \ ; ^ $ ~ | `).
- * 2. Purga y sanitización automática en eventos de tipeo y pegado (Paste Sanitization).
- * 3. Escape de caracteres especiales para evitar inyecciones DOM y XSS Reflejado.
+ *
+ * Implementación de defensas en profundidad:
+ * 1. Sanitización iterativa en punto fijo contra payloads anidados y esquemas XSS.
+ * 2. Preservación de puntuación comercial legítima ($, *, [, ], ;, (, ), %, etc.).
+ * 3. Expresiones regulares sin estado (/g prohibido en .test()) y validación estricta HTTPS.
  */
 
-// Conjunto de caracteres expresamente bloqueados para prevenir ataques de inyección y XSS
-export const FORBIDDEN_XSS_REGEX = /[<>{}\[\]*\\;^$|~`]/g
+// Patrones de scripts y esquemas peligrosos (sin /g para uso seguro en .test())
+export const MALICIOUS_SCRIPT_PATTERNS =
+  /(?:javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|\bon\w+\s*=|<\s*(?:script|iframe|embed|object)\b)/i
 
-// Lista de palabras clave y prefijos de scripts maliciosos
-export const MALICIOUS_SCRIPT_PATTERNS = /(javascript:|data:|vbscript:|on\w+=|<\s*script|<\s*iframe|<\s*embed|<\s*object)/gi
+const SAFE_ANGLE_CHECK = /[<>]/
+const SAFE_SCRIPT_TAG_CHECK = /<\s*(?:script|iframe|embed|object)\b/i
+const SAFE_SCHEME_OR_HANDLER_CHECK = /(?:javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|\bon\w+\s*=)/i
 
 /**
- * Sanitiza una cadena de texto eliminando cualquier carácter o patrón peligroso.
+ * Elimina iterativamente etiquetas HTML, bloques <script>, ángulos < > y esquemas/handlers peligrosos
+ * hasta alcanzar un punto fijo, evitando bypasses en una sola pasada sin bloquear puntuación comercial.
+ * @param {string} input
+ * @returns {string}
+ */
+function stripDangerousPatterns(input) {
+  if (typeof input !== 'string') return ''
+  let out = input
+  let prev
+  do {
+    prev = out
+    out = out
+      .replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<[^>]*>/g, '')
+      .replace(/[<>]/g, '')
+      .replace(/(?:javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|\bon\w+\s*=)/gi, '')
+  } while (out !== prev)
+  return out
+}
+
+/**
+ * Sanitiza una cadena de texto eliminando cualquier etiqueta HTML o patrón XSS peligroso.
  * @param {string} input Texto sin procesar
  * @returns {string} Texto limpio y seguro
  */
 export function sanitizeInput(input) {
-  if (typeof input !== 'string') return ''
-  return input
-    .replace(FORBIDDEN_XSS_REGEX, '')
-    .replace(MALICIOUS_SCRIPT_PATTERNS, '')
-    .trim()
-}
-
-/**
- * Event Listener para `@keypress` o `@keydown`:
- * Bloquea físicamente la pulsación de teclas con caracteres prohibidos ([ } * < > \ ; ^ $ ~ | `).
- * @param {KeyboardEvent} event 
- */
-export function blockDangerousCharsOnKeypress(event) {
-  const char = event.key
-  // Permitir teclas de control del teclado (Backspace, Enter, flechas, etc.)
-  if (event.ctrlKey || event.metaKey || event.altKey || char.length > 1) {
-    return
-  }
-
-  if (/[<>{}\[\]*\\;^$|~`]/.test(char)) {
-    event.preventDefault()
-  }
+  return stripDangerousPatterns(input).trim()
 }
 
 /**
  * Event Listener para `@input` o `@paste`:
- * Garantiza que si un usuario pega texto con caracteres especiales prohibidos,
- * estos sean removidos instantáneamente del campo de texto.
- * @param {InputEvent | Event} event 
- * @param {Function} updateCallback Callback opcional para sincronizar el modelo reactivo
+ * Purga etiquetas HTML y esquemas/handlers peligrosos sin obstruir puntuación comercial.
+ * @param {InputEvent | Event} event
+ * @param {Function|null} updateCallback Callback opcional para sincronizar el modelo reactivo
  */
 export function sanitizeEventInput(event, updateCallback = null) {
-  const target = event.target
+  const target = event?.target
   if (!target || typeof target.value !== 'string') return
 
-  const cleaned = target.value.replace(FORBIDDEN_XSS_REGEX, '')
+  const cleaned = stripDangerousPatterns(target.value)
   if (target.value !== cleaned) {
     target.value = cleaned
     if (typeof updateCallback === 'function') {
@@ -64,13 +65,113 @@ export function sanitizeEventInput(event, updateCallback = null) {
 }
 
 /**
- * Verifica si un texto contiene caracteres o patrones peligrosos de XSS.
- * @param {string} str 
+ * Verifica de manera determinista (sin lastIndex stateful) si un texto está libre de patrones XSS.
+ * @param {string} str
  * @returns {boolean} true si es seguro, false si contiene amenazas
  */
 export function isSafeInput(str) {
   if (typeof str !== 'string') return true
-  if (FORBIDDEN_XSS_REGEX.test(str)) return false
-  if (MALICIOUS_SCRIPT_PATTERNS.test(str)) return false
+  if (SAFE_ANGLE_CHECK.test(str)) return false
+  if (SAFE_SCRIPT_TAG_CHECK.test(str)) return false
+  if (SAFE_SCHEME_OR_HANDLER_CHECK.test(str)) return false
   return true
+}
+
+/**
+ * Valida estrictamente que una URL use protocolo HTTPS válido.
+ * @param {string} url
+ * @returns {boolean}
+ */
+export function isValidHttpsUrl(url) {
+  if (typeof url !== 'string') return false
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'https:' && Boolean(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Pre-escala una imagen en HTML5 <canvas> a un máximo de maxWidth x maxHeight en JPEG
+ * antes de enviarla al backend. Si falla el procesamiento en cliente, retorna el archivo original.
+ * @param {File} file
+ * @param {number} maxWidth
+ * @param {number} maxHeight
+ * @param {number} quality
+ * @returns {Promise<File>}
+ */
+export function resizeImageBeforeUpload(file, maxWidth = 900, maxHeight = 600, quality = 0.85) {
+  if (!(file instanceof Blob) || typeof document === 'undefined' || typeof Image === 'undefined') {
+    return Promise.resolve(file)
+  }
+
+  return new Promise((resolve) => {
+    let objectUrl = null
+    try {
+      objectUrl = URL.createObjectURL(file)
+      const img = new Image()
+
+      img.onload = () => {
+        try {
+          const origW = img.naturalWidth || img.width
+          const origH = img.naturalHeight || img.height
+          if (!origW || !origH) {
+            resolve(file)
+            return
+          }
+
+          const ratio = Math.min(maxWidth / origW, maxHeight / origH, 1)
+          const targetW = Math.max(1, Math.round(origW * ratio))
+          const targetH = Math.max(1, Math.round(origH * ratio))
+
+          const canvas = document.createElement('canvas')
+          canvas.width = targetW
+          canvas.height = targetH
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            resolve(file)
+            return
+          }
+
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, targetW, targetH)
+          ctx.drawImage(img, 0, 0, targetW, targetH)
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file)
+                return
+              }
+              const baseName = (file.name || 'producto').replace(/\.[^.]+$/, '')
+              const resizedFile = new File([blob], `${baseName}.jpg`, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              })
+              resolve(resizedFile)
+            },
+            'image/jpeg',
+            quality
+          )
+        } catch {
+          resolve(file)
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl)
+        }
+      }
+
+      img.onerror = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
+        resolve(file)
+      }
+
+      img.src = objectUrl
+    } catch {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      resolve(file)
+    }
+  })
 }
