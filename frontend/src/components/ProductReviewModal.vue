@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useProductStore } from '../stores/products'
 import { useAuthStore } from '../stores/auth'
-import { blockDangerousCharsOnKeypress, sanitizeEventInput, sanitizeInput } from '../utils/security'
+import { sanitizeEventInput, sanitizeInput } from '../utils/security'
 import {
   X,
   Star,
@@ -114,7 +114,7 @@ async function handleSubmit() {
               {{ productStore.reviewingProduct.title }}
             </h4>
             <p class="text-[11px] text-slate-500">
-              Vendido por {{ productStore.reviewingProduct.seller_nombre || productStore.reviewingProduct.seller_alias }}
+              Vendido por {{ productStore.reviewingProduct.is_official_store ? (productStore.reviewingProduct.seller_official_store_name || productStore.reviewingProduct.seller_alias) : productStore.reviewingProduct.seller_alias }}
             </p>
           </div>
         </div>
@@ -175,7 +175,6 @@ async function handleSubmit() {
           </label>
           <textarea
             v-model="comment"
-            @keypress="blockDangerousCharsOnKeypress"
             @input="onCommentInput"
             rows="3"
             placeholder="Cuéntale a otros compradores qué tal te pareció la calidad del producto, el despacho o la atención..."

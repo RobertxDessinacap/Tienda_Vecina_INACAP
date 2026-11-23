@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import {
   X,
   Lock,
@@ -13,11 +13,20 @@ import {
   ArrowRight,
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
-import { blockDangerousCharsOnKeypress, sanitizeEventInput } from '../utils/security'
+import { sanitizeEventInput, sanitizeInput } from '../utils/security'
 
 const authStore = useAuthStore()
 
 const activeTab = ref(authStore.authModalMode || 'login')
+
+watch(
+  () => authStore.authModalOpen,
+  (open) => {
+    if (open) {
+      activeTab.value = authStore.authModalMode || 'login'
+    }
+  }
+)
 
 const loginForm = reactive({
   email: '',
@@ -53,21 +62,9 @@ async function handleRegister() {
     email: registerForm.email,
     password: registerForm.password,
     role: registerForm.role,
-    fullName: registerForm.fullName,
-    customAlias: registerForm.customAlias,
+    fullName: sanitizeInput(registerForm.fullName),
+    customAlias: sanitizeInput(registerForm.customAlias),
   })
-}
-
-// Demo quick-fill credentials
-function fillDemo(email, pass, role = null) {
-  if (activeTab.value === 'login') {
-    loginForm.email = email
-    loginForm.password = pass
-  } else {
-    registerForm.email = email
-    registerForm.password = pass
-    if (role) registerForm.role = role
-  }
 }
 </script>
 
@@ -207,7 +204,6 @@ function fillDemo(email, pass, role = null) {
             <input
               v-model="registerForm.fullName"
               type="text"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="e => sanitizeEventInput(e, v => registerForm.fullName = v)"
               placeholder="Ej: Roberto González"
               class="w-full px-3 py-2 rounded-lg border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-accent"
@@ -219,7 +215,6 @@ function fillDemo(email, pass, role = null) {
             <input
               v-model="registerForm.customAlias"
               type="text"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="e => sanitizeEventInput(e, v => registerForm.customAlias = v)"
               :placeholder="intermediateAliasPreview || 'Ej: RobertoG o MiTienda'"
               class="w-full px-3 py-2 rounded-lg border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-accent"
@@ -247,36 +242,6 @@ function fillDemo(email, pass, role = null) {
             <span v-else>Registrarse como {{ registerForm.role === 'SELLER' ? 'Vendedor' : 'Comprador' }}</span>
           </button>
         </form>
-
-        <!-- Fast Demo Credential Buttons -->
-        <div class="pt-3 border-t border-brand-border">
-          <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-            Cuentas Demo para Pruebas Rápidas:
-          </span>
-          <div class="grid grid-cols-3 gap-1.5">
-            <button
-              type="button"
-              @click="fillDemo('vendedor@inacap.cl', 'Vendedor1234!', 'SELLER')"
-              class="bg-brand-accent-soft hover:bg-brand-primary-subtle text-brand-primary-text border border-brand-accent-border py-1 px-2 rounded-md text-[10px] font-semibold transition-colors"
-            >
-              Vendedor
-            </button>
-            <button
-              type="button"
-              @click="fillDemo('comprador@inacap.cl', 'Comprador1234!', 'BUYER')"
-              class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 py-1 px-2 rounded-md text-[10px] font-semibold transition-colors"
-            >
-              Comprador
-            </button>
-            <button
-              type="button"
-              @click="fillDemo('admin@inacap.cl', 'Admin1234!', 'ADMIN')"
-              class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 py-1 px-2 rounded-md text-[10px] font-semibold transition-colors"
-            >
-              Admin
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>

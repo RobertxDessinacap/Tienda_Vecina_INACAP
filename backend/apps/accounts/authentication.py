@@ -1,20 +1,23 @@
 """
 JWT Authentication Service adhering to ISO 27001 Cryptographic Guidelines.
-Issues and validates short-lived, signed JWT tokens.
+Issues and validates short-lived, signed JWT tokens with revocation support.
 """
 from datetime import datetime, timedelta, timezone
+import uuid
 import jwt
 from django.conf import settings
 from rest_framework import authentication, exceptions
-from apps.accounts.models import UserCredential
+from apps.accounts.models import RevokedToken, UserCredential
+
 
 def generate_jwt_token(user: UserCredential) -> str:
-    """Generates a secure, signed JWT containing minimal user claims."""
+    """Generates a secure, signed JWT containing minimal user claims and unique jti."""
     expiration = datetime.now(timezone.utc) + timedelta(hours=settings.JWT_EXPIRATION_HOURS)
     payload = {
         'sub': str(user.id),
         'email': user.email,
         'role': user.role,
+        'jti': str(uuid.uuid4()),
         'exp': expiration,
         'iat': datetime.now(timezone.utc),
         'iss': 'inacap-ecommerce-auth',
@@ -51,6 +54,10 @@ class JWTAuthentication(authentication.BaseAuthentication):
                 return None
             raise exceptions.AuthenticationFailed('Token de autenticación inválido o manipulado.')
 
+        jti = payload.get('jti')
+        if jti and RevokedToken.objects.filter(jti=jti).exists():
+            raise exceptions.AuthenticationFailed('El token ha sido revocado. Inicia sesión nuevamente.')
+
         user_id = payload.get('sub')
         try:
             user = UserCredential.objects.get(id=user_id)
@@ -60,4 +67,8 @@ class JWTAuthentication(authentication.BaseAuthentication):
         if not user.is_active:
             raise exceptions.AuthenticationFailed('La cuenta se encuentra inactiva.')
 
+        if user.is_locked():
+            raise exceptions.AuthenticationFailed('La cuenta se encuentra temporalmente bloqueada por seguridad.')
+
+        request._jwt_payload = payload
         return (user, token)

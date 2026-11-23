@@ -2,32 +2,30 @@ import { defineStore } from 'pinia'
 import apiClient from '../services/api'
 
 export const useAuthStore = defineStore('auth', {
-  state: () => {
-    let savedUser = null
-    try {
-      savedUser = JSON.parse(localStorage.getItem('inacap_auth_user') || 'null')
-    } catch {
-      savedUser = null
-    }
-
-    return {
-      user: savedUser,
-      token: localStorage.getItem('inacap_auth_token') || null,
-      loading: false,
-      error: null,
-      authModalOpen: false,
-      authModalMode: 'login', // 'login' | 'register'
-      becomeSellerModalOpen: false,
-    }
-  },
+  state: () => ({
+    user: null,
+    token: localStorage.getItem('inacap_auth_token') || null,
+    loading: false,
+    error: null,
+    authModalOpen: false,
+    authModalMode: 'login', // 'login' | 'register'
+    becomeSellerModalOpen: false,
+    _authExpiredListenerBound: false,
+  }),
 
   getters: {
     isAuthenticated: (state) => !!state.token && !!state.user,
     userRole: (state) => state.user?.role || 'GUEST',
     isSeller: (state) => state.user?.role === 'SELLER' || state.user?.role === 'ADMIN',
     isAdmin: (state) => state.user?.role === 'ADMIN',
-    intermediateAlias: (state) => state.user?.intermediate_account?.public_alias || state.user?.user_profile?.public_alias || 'Usuario Anónimo',
-    intermediateReputation: (state) => state.user?.intermediate_account?.reputation_score || state.user?.user_profile?.reputation_score || 5.0,
+    intermediateAlias: (state) =>
+      state.user?.intermediate_account?.public_alias ||
+      state.user?.user_profile?.public_alias ||
+      'Usuario Anónimo',
+    intermediateReputation: (state) =>
+      state.user?.intermediate_account?.reputation_score ||
+      state.user?.user_profile?.reputation_score ||
+      5.0,
   },
 
   actions: {
@@ -52,6 +50,13 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
     },
 
+    clearSession() {
+      this.user = null
+      this.token = null
+      localStorage.removeItem('inacap_auth_token')
+      localStorage.removeItem('inacap_auth_user')
+    },
+
     async upgradeToSeller() {
       this.loading = true
       this.error = null
@@ -59,7 +64,6 @@ export const useAuthStore = defineStore('auth', {
         const response = await apiClient.post('/auth/upgrade-seller/')
         const { user } = response.data
         this.user = user
-        localStorage.setItem('inacap_auth_user', JSON.stringify(user))
         this.closeBecomeSellerModal()
         return { success: true, user }
       } catch (err) {
@@ -81,14 +85,15 @@ export const useAuthStore = defineStore('auth', {
         this.user = user
 
         localStorage.setItem('inacap_auth_token', token)
-        localStorage.setItem('inacap_auth_user', JSON.stringify(user))
+        localStorage.removeItem('inacap_auth_user')
 
         this.closeAuthModal()
         return { success: true, user }
       } catch (err) {
-        const message = err.response?.data?.errors?.[0] ||
-                        err.response?.data?.message ||
-                        'Error de autenticación. Verifique sus credenciales.'
+        const message =
+          err.response?.data?.errors?.[0] ||
+          err.response?.data?.message ||
+          'Error de autenticación. Verifique sus credenciales.'
         this.error = message
         return { success: false, error: message }
       } finally {
@@ -112,7 +117,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = user
 
         localStorage.setItem('inacap_auth_token', token)
-        localStorage.setItem('inacap_auth_user', JSON.stringify(user))
+        localStorage.removeItem('inacap_auth_user')
 
         this.closeAuthModal()
         return { success: true, user }
@@ -138,31 +143,37 @@ export const useAuthStore = defineStore('auth', {
         const response = await apiClient.get('/auth/me/')
         if (response.data?.data) {
           this.user = response.data.data
-          localStorage.setItem('inacap_auth_user', JSON.stringify(this.user))
         }
       } catch (err) {
         if (err.response?.status === 401 || err.response?.status === 403) {
-          this.logout()
+          this.clearSession()
         }
       }
     },
 
-    initAuth() {
-      if (typeof window !== 'undefined') {
+    async initAuth() {
+      if (typeof window !== 'undefined' && !this._authExpiredListenerBound) {
+        this._authExpiredListenerBound = true
         window.addEventListener('inacap:auth-expired', () => {
-          this.logout()
+          this.clearSession()
         })
       }
+      localStorage.removeItem('inacap_auth_user')
       if (this.token) {
-        this.checkAuth()
+        await this.checkAuth()
       }
     },
 
-    logout() {
-      this.user = null
-      this.token = null
-      localStorage.removeItem('inacap_auth_token')
-      localStorage.removeItem('inacap_auth_user')
+    async logout() {
+      if (this.token) {
+        try {
+          await apiClient.post('/auth/logout/').catch(() => {})
+        } finally {
+          this.clearSession()
+        }
+      } else {
+        this.clearSession()
+      }
     },
   },
 })

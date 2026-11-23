@@ -1,5 +1,5 @@
 import uuid
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
 from django.db.models.signals import post_save
@@ -130,10 +130,28 @@ class UserProfile(models.Model):
     is_verified_seller = models.BooleanField(default=False)
     total_sales = models.PositiveIntegerField(default=0)
 
-    # Tienda Oficial (Registrada por el vendedor)
+    # Tienda Oficial (Registrada por el vendedor, moderada por administración)
+    STORE_STATUS_NONE = 'NONE'
+    STORE_STATUS_PENDING = 'PENDING'
+    STORE_STATUS_APPROVED = 'APPROVED'
+    STORE_STATUS_REJECTED = 'REJECTED'
+
+    STORE_STATUS_CHOICES = (
+        (STORE_STATUS_NONE, 'Sin solicitud'),
+        (STORE_STATUS_PENDING, 'Pendiente de aprobación'),
+        (STORE_STATUS_APPROVED, 'Aprobada'),
+        (STORE_STATUS_REJECTED, 'Rechazada'),
+    )
+
     is_official_store = models.BooleanField(default=False, verbose_name="¿Es Tienda Oficial?")
     official_store_name = models.CharField(max_length=150, blank=True, default='', verbose_name="Nombre de la Tienda Oficial")
     official_store_url = models.URLField(max_length=500, blank=True, default='', verbose_name="URL del Sitio Oficial")
+    official_store_status = models.CharField(
+        max_length=20,
+        choices=STORE_STATUS_CHOICES,
+        default=STORE_STATUS_NONE,
+        verbose_name="Estado de Tienda Oficial"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -205,6 +223,28 @@ class UserRol(models.Model):
         return f"{self.user_profile.public_alias} -> {self.rol.nombre}"
 
 
+class RevokedToken(models.Model):
+    """Lista negra de tokens JWT revocados tras logout o cierre de sesión."""
+    jti = models.CharField(max_length=64, unique=True, db_index=True)
+    user = models.ForeignKey(
+        UserCredential,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='revoked_tokens'
+    )
+    revoked_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Token Revocado'
+        verbose_name_plural = 'Tokens Revocados'
+        ordering = ['-revoked_at']
+
+    def __str__(self):
+        return f"RevokedToken({self.jti})"
+
+
 # ==============================================================================
 # SEÑAL PARA GARANTIZAR LA CREACIÓN ATÓMICA DE PERSONA, USERPROFILE Y USERROL
 # ==============================================================================
@@ -214,39 +254,48 @@ def ensure_persona_and_user_profile(sender, instance, created, **kwargs):
     Garantiza que cada User de Django tenga automáticamente:
     1. Su objeto Persona.
     2. Su UserProfile intermedio conectado a User y Persona.
-    3. Sus UserRoles asignados (Vendedor, Cliente o Admin).
+    3. Sus UserRoles sincronizados con instance.role (Vendedor, Cliente o Admin).
     """
-    try:
-        profile = instance.user_profile
-    except UserProfile.DoesNotExist:
-        # 1. Crear Persona base
-        base_name = instance.email.split('@')[0].replace('.', ' ').title()
-        persona = Persona.objects.create(
-            nombres=base_name,
-            apellidos='Usuario',
-            correo_contacto=instance.email
-        )
+    with transaction.atomic():
+        try:
+            profile = instance.user_profile
+        except UserProfile.DoesNotExist:
+            # 1. Crear Persona base
+            base_name = instance.email.split('@')[0].replace('.', ' ').title()
+            persona = Persona.objects.create(
+                nombres=base_name,
+                apellidos='Usuario',
+                correo_contacto=instance.email
+            )
 
-        # 2. Crear UserProfile intermedio
-        base_alias = instance.email.split('@')[0].replace('.', '_')
-        unique_alias = f"{base_alias}_{uuid.uuid4().hex[:6]}"
-        is_seller = (instance.role in (UserCredential.ROLE_SELLER, UserCredential.ROLE_ADMIN))
-        profile = UserProfile.objects.create(
-            user=instance,
-            persona=persona,
-            public_alias=unique_alias,
-            is_verified_seller=is_seller
-        )
+            # 2. Crear UserProfile intermedio
+            base_alias = instance.email.split('@')[0].replace('.', '_')
+            unique_alias = f"{base_alias}_{uuid.uuid4().hex[:6]}"
+            is_seller = (instance.role in (UserCredential.ROLE_SELLER, UserCredential.ROLE_ADMIN))
+            profile = UserProfile.objects.create(
+                user=instance,
+                persona=persona,
+                public_alias=unique_alias,
+                is_verified_seller=is_seller
+            )
 
-    # 3. Asignar ROL -> UserRol correspondiente
-    role_mapping = {
-        UserCredential.ROLE_ADMIN: ('Administrador', 'ADMIN'),
-        UserCredential.ROLE_SELLER: ('Vendedor', 'SELLER'),
-        UserCredential.ROLE_BUYER: ('Cliente', 'BUYER'),
-    }
-    nombre_rol, codigo_rol = role_mapping.get(instance.role, ('Cliente', 'BUYER'))
-    rol_obj, _ = Rol.objects.get_or_create(
-        codigo=codigo_rol,
-        defaults={'nombre': nombre_rol, 'descripcion': f'Rol {nombre_rol} en Tienda Vecina'}
-    )
-    UserRol.objects.get_or_create(user_profile=profile, rol=rol_obj)
+        # 3. Sincronizar ROL -> UserRol correspondiente
+        role_mapping = {
+            UserCredential.ROLE_ADMIN: ('Administrador', 'ADMIN'),
+            UserCredential.ROLE_SELLER: ('Vendedor', 'SELLER'),
+            UserCredential.ROLE_BUYER: ('Cliente', 'BUYER'),
+        }
+        nombre_rol, codigo_rol = role_mapping.get(instance.role, ('Cliente', 'BUYER'))
+        rol_obj, _ = Rol.objects.get_or_create(
+            codigo=codigo_rol,
+            defaults={'nombre': nombre_rol, 'descripcion': f'Rol {nombre_rol} en Tienda Vecina'}
+        )
+        UserRol.objects.filter(user_profile=profile).exclude(rol__codigo=codigo_rol).update(activo=False)
+        user_rol, ur_created = UserRol.objects.get_or_create(
+            user_profile=profile,
+            rol=rol_obj,
+            defaults={'activo': True}
+        )
+        if not ur_created and not user_rol.activo:
+            user_rol.activo = True
+            user_rol.save(update_fields=['activo'])

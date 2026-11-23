@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
 import { useLocationStore } from '../stores/location'
-import { blockDangerousCharsOnKeypress, sanitizeInput, sanitizeEventInput } from '../utils/security'
+import { sanitizeInput, sanitizeEventInput } from '../utils/security'
 import {
   Search,
   ShoppingCart,
@@ -72,7 +72,6 @@ function handleSellClick() {
             <input
               v-model="localSearch"
               type="text"
-              @keypress="blockDangerousCharsOnKeypress"
               @input="onSearchInput"
               placeholder="Buscar productos, marcas, computación y más..."
               class="w-full bg-brand-surface text-slate-800 text-sm pl-4 pr-12 py-2.5 rounded-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-brand-accent placeholder-slate-400"

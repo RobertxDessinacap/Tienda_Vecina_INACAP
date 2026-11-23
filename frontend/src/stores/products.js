@@ -30,6 +30,11 @@ export const useProductStore = defineStore('products', {
     },
     activeView: 'catalog', // 'catalog' | 'product_page' | 'my_products'
     activeProductSlug: null,
+    page: 1,
+    totalPages: 1,
+    totalCount: 0,
+    nextPage: null,
+    previousPage: null,
   }),
 
   getters: {
@@ -62,11 +67,12 @@ export const useProductStore = defineStore('products', {
       }
     },
 
-    async fetchProducts() {
+    async fetchProducts(page = 1) {
+      const targetPage = Math.max(1, Number(page) || 1)
       this.loading = true
       this.error = null
       try {
-        const params = {}
+        const params = { page: targetPage }
         if (this.searchQuery && this.searchQuery.trim()) {
           params.q = this.searchQuery.trim()
         }
@@ -87,12 +93,49 @@ export const useProductStore = defineStore('products', {
         }
 
         const response = await apiClient.get('/products/', { params })
-        this.products = response.data.data || []
+        const resData = response.data || {}
+        const pag = resData.pagination || {}
+        const items = Array.isArray(resData.data)
+          ? resData.data
+          : Array.isArray(resData.results)
+            ? resData.results
+            : Array.isArray(resData.data?.results)
+              ? resData.data.results
+              : []
 
-        if (response.data.price_bounds) {
+        this.products = items
+
+        const rawCount = pag.total_count ?? pag.count ?? resData.total_count ?? resData.count ?? items.length
+        this.totalCount = Number(rawCount) || 0
+
+        const hasPaginationMeta =
+          resData.total_pages !== undefined ||
+          resData.totalPages !== undefined ||
+          pag.total_pages !== undefined ||
+          pag.totalPages !== undefined ||
+          'next' in resData ||
+          'next' in pag
+
+        if (hasPaginationMeta) {
+          const pageSize = Number(pag.page_size ?? resData.page_size ?? 12) || 12
+          const computedPages = Math.max(1, Math.ceil(this.totalCount / pageSize))
+          this.totalPages =
+            Number(pag.total_pages ?? pag.totalPages ?? resData.total_pages ?? resData.totalPages ?? computedPages) || 1
+          this.page =
+            Number(pag.page ?? pag.current_page ?? resData.page ?? resData.current_page ?? targetPage) || 1
+          this.nextPage = pag.next ?? resData.next ?? (this.page < this.totalPages ? this.page + 1 : null)
+          this.previousPage = pag.previous ?? resData.previous ?? (this.page > 1 ? this.page - 1 : null)
+        } else {
+          this.page = 1
+          this.totalPages = 1
+          this.nextPage = null
+          this.previousPage = null
+        }
+
+        if (resData.price_bounds) {
           this.priceBounds = {
-            min: Math.floor(response.data.price_bounds.min || 0),
-            max: Math.ceil(response.data.price_bounds.max || 2500000),
+            min: Math.floor(resData.price_bounds.min || 0),
+            max: Math.ceil(resData.price_bounds.max || 2500000),
           }
         }
       } catch (err) {
@@ -126,35 +169,43 @@ export const useProductStore = defineStore('products', {
       this.activeView = 'catalog'
       this.selectedProduct = null
       this.activeProductSlug = null
+      this.page = 1
       window.history.pushState({}, '', '/')
-      this.fetchProducts()
+      this.fetchProducts(1)
     },
 
     setSearch(query) {
       this.searchQuery = query
+      this.page = 1
       if (this.activeView !== 'catalog') {
         this.activeView = 'catalog'
         window.history.pushState({}, '', '/')
       }
-      this.fetchProducts()
+      this.fetchProducts(1)
     },
 
     setCategory(categorySlug) {
       this.activeCategory = this.activeCategory === categorySlug ? null : categorySlug
+      this.page = 1
       if (this.activeView !== 'catalog') {
         this.activeView = 'catalog'
         window.history.pushState({}, '', '/')
       }
-      this.fetchProducts()
+      this.fetchProducts(1)
     },
 
     setOrdering(sortOrder) {
       this.ordering = sortOrder
-      this.fetchProducts()
+      this.page = 1
+      this.fetchProducts(1)
     },
 
     openDetail(product) {
       this.fetchProductBySlug(product.slug)
+    },
+
+    closeDetail() {
+      this.detailModalOpen = false
     },
 
     openCreateModal() {
@@ -183,8 +234,9 @@ export const useProductStore = defineStore('products', {
       if (searchQuery !== undefined) {
         this.searchQuery = searchQuery
       }
+      this.page = 1
       this.filterModalOpen = false
-      this.fetchProducts()
+      this.fetchProducts(1)
     },
 
     clearAllFilters() {
@@ -193,7 +245,8 @@ export const useProductStore = defineStore('products', {
       this.onlyFreeShipping = false
       this.activeCategory = null
       this.searchQuery = ''
-      this.fetchProducts()
+      this.page = 1
+      this.fetchProducts(1)
     },
 
     async createProduct(formDataOrJson) {

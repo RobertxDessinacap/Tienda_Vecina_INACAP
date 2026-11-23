@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useProductStore } from '../stores/products'
 import { useAuthStore } from '../stores/auth'
+import { isValidHttpsUrl } from '../utils/security'
 import {
   Package,
   PlusCircle,
@@ -17,6 +18,7 @@ import {
   Boxes,
   TrendingUp,
   Tag,
+  Clock,
 } from 'lucide-vue-next'
 
 const productStore = useProductStore()
@@ -103,7 +105,7 @@ function handleViewProduct(slug) {
                 <Store class="w-4 h-4 text-emerald-400" />
                 <span>Tienda Oficial: <strong class="text-white">{{ authStore.user.user_profile.official_store_name }}</strong></span>
                 <a
-                  v-if="authStore.user.user_profile.official_store_url"
+                  v-if="isValidHttpsUrl(authStore.user.user_profile.official_store_url)"
                   :href="authStore.user.user_profile.official_store_url"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -115,6 +117,23 @@ function handleViewProduct(slug) {
                 <button
                   @click="productStore.openRegisterStoreModal()"
                   class="ml-2 text-[11px] text-slate-300 hover:text-white underline cursor-pointer"
+                >
+                  Editar
+                </button>
+              </div>
+            </template>
+            <template v-else-if="authStore.user?.user_profile?.official_store_status === 'PENDING'">
+              <div class="inline-flex flex-wrap items-center gap-2 bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs px-3 py-1.5 rounded-lg">
+                <Clock class="w-4 h-4 text-amber-300 shrink-0" />
+                <span>
+                  Tienda Oficial: <strong class="text-white">{{ authStore.user.user_profile.official_store_name }}</strong>
+                </span>
+                <span class="bg-amber-500/25 border border-amber-400/40 text-amber-100 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  Solicitud en revisión por administración
+                </span>
+                <button
+                  @click="productStore.openRegisterStoreModal()"
+                  class="ml-1 text-[11px] text-slate-300 hover:text-white underline cursor-pointer"
                 >
                   Editar
                 </button>

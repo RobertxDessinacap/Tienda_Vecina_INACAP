@@ -20,6 +20,7 @@ import InfoPagesModal from './components/InfoPagesModal.vue'
 import LocationModal from './components/LocationModal.vue'
 import { useProductStore } from './stores/products'
 import { useAuthStore } from './stores/auth'
+import { useCartStore } from './stores/cart'
 import {
   SlidersHorizontal,
   PackageOpen,
@@ -28,18 +29,67 @@ import {
   Truck,
   RotateCcw,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-vue-next'
 
 const productStore = useProductStore()
 const authStore = useAuthStore()
+const cartStore = useCartStore()
 const infoModalRef = ref(null)
 
+async function changePage(targetPage) {
+  if (targetPage < 1 || targetPage > productStore.totalPages) return
+  await productStore.fetchProducts(targetPage)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 onMounted(async () => {
-  authStore.initAuth()
   await Promise.all([
+    authStore.initAuth(),
     productStore.fetchCategories(),
     productStore.fetchProducts(),
   ])
+
+  // Manejo de retorno desde Webpay Plus (/api/v1/payments/transbank/commit/)
+  const urlParams = new URLSearchParams(window.location.search)
+  const paymentStatus = urlParams.get('payment_status')
+  if (paymentStatus) {
+    const buyOrder = urlParams.get('buy_order') || ''
+    const authCode = urlParams.get('auth_code') || ''
+    const rawAmount = urlParams.get('amount')
+    const amount = rawAmount !== null && rawAmount !== '' ? Number(rawAmount) : 0
+    const cardLastDigits = urlParams.get('card_last_digits') || ''
+    const message = urlParams.get('message') || ''
+
+    if (paymentStatus === 'AUTHORIZED') {
+      cartStore.clearCart()
+      cartStore.openPaymentModal()
+      cartStore.paymentVoucher = {
+        buy_order: buyOrder,
+        authorization_code: authCode,
+        amount: Number.isFinite(amount) ? amount : 0,
+        card_last_digits: cardLastDigits,
+        status: 'APROBADO',
+      }
+      await productStore.fetchProducts(productStore.page)
+    } else {
+      cartStore.openPaymentModal()
+      const statusMessages = {
+        CANCELLED: 'El pago fue cancelado en Transbank Webpay Plus.',
+        REVERSED: 'Stock insuficiente al confirmar el pago. La transacción fue reversada automáticamente.',
+        NOT_FOUND: 'No se encontró la orden asociada al token de pago.',
+        ERROR: 'Ocurrió un error al validar la transacción con Transbank.',
+      }
+      cartStore.paymentError =
+        message ||
+        statusMessages[paymentStatus] ||
+        'La transacción fue rechazada por Transbank.'
+    }
+
+    const cleanUrl = window.location.pathname + (window.location.hash || '')
+    window.history.replaceState({}, '', cleanUrl)
+  }
 
   // Soporte de URL Limpia y rutas en la carga inicial
   const path = window.location.pathname
@@ -102,7 +152,7 @@ onMounted(async () => {
                 <span v-else>Catálogo Oficial en Tienda Vecina</span>
               </h2>
               <p class="text-xs text-slate-500">
-                {{ productStore.products.length }} productos disponibles con despacho inmediato
+                {{ productStore.totalCount }} productos disponibles con despacho inmediato
               </p>
             </div>
 
@@ -187,6 +237,34 @@ onMounted(async () => {
               :key="product.id"
               :product="product"
             />
+          </div>
+
+          <!-- Pagination Controls -->
+          <div
+            v-if="!productStore.loading && productStore.totalPages > 1"
+            class="flex items-center justify-center gap-3 mt-6 py-3"
+          >
+            <button
+              type="button"
+              :disabled="productStore.page <= 1"
+              @click="changePage(productStore.page - 1)"
+              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-brand-border bg-brand-surface hover:bg-brand-primary-subtle text-xs font-semibold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+            >
+              <ChevronLeft class="w-4 h-4" />
+              <span>Anterior</span>
+            </button>
+            <span class="text-xs font-semibold text-slate-600 px-2">
+              Página {{ productStore.page }} de {{ productStore.totalPages }}
+            </span>
+            <button
+              type="button"
+              :disabled="productStore.page >= productStore.totalPages"
+              @click="changePage(productStore.page + 1)"
+              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-brand-border bg-brand-surface hover:bg-brand-primary-subtle text-xs font-semibold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+            >
+              <span>Siguiente</span>
+              <ChevronRight class="w-4 h-4" />
+            </button>
           </div>
 
           <!-- Security & ISO 27001 Informational Section -->

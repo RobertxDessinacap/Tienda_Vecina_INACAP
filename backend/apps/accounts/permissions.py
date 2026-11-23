@@ -4,6 +4,7 @@ Role-Based Access Control (RBAC) Permissions conforming to ISO 27001 A.8.3.
 from rest_framework import permissions
 from apps.accounts.models import UserCredential
 
+
 class IsSellerOrAdmin(permissions.BasePermission):
     """Allows write/create operations only to Sellers and Administrators."""
     def has_permission(self, request, view):
@@ -11,13 +12,7 @@ class IsSellerOrAdmin(permissions.BasePermission):
             return True
         if not (request.user and request.user.is_authenticated):
             return False
-        # Verificación directa sobre credencial o catálogo RBAC en UserProfile
-        if request.user.role in (UserCredential.ROLE_SELLER, UserCredential.ROLE_ADMIN):
-            return True
-        profile = getattr(request.user, 'user_profile', None)
-        if profile and (profile.has_role('SELLER') or profile.has_role('ADMIN')):
-            return True
-        return False
+        return request.user.role in (UserCredential.ROLE_SELLER, UserCredential.ROLE_ADMIN)
 
 
 class IsAccountOwnerOrReadOnly(permissions.BasePermission):
